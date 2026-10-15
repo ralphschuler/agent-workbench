@@ -1,0 +1,80 @@
+name: agent-workbench
+
+services:
+  agent:
+    image: ${AGENT_IMAGE:-ghcr.io/ralphschuler/agent-workbench:latest}
+    build:
+      context: .
+      platforms: [linux/amd64]
+    platform: linux/amd64
+    restart: unless-stopped
+    shm_size: 1gb
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker/seccomp-chrome.json
+    ports:
+      - "127.0.0.1:${DESKTOP_PORT:-6080}:6080"
+    volumes:
+      - agent-home:/home/agent
+      - hindsight-auth:/home/agent/.hindsight-auth
+      - ./workspace:/workspace
+    secrets:
+      - vnc_password
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GH_TOKEN: ${GH_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      GITHUB_TOOLSETS: ${GITHUB_TOOLSETS:-context,repos,issues,pull_requests,users,actions}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TYPESAFE_DEFAULT_MODEL: ${TYPESAFE_DEFAULT_MODEL:-jev-latest}
+      JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-8}
+      JEV_IMAGE_ROOTS: ${JEV_IMAGE_ROOTS:-/workspace:/tmp}
+      PLAYWRIGHT_MCP_USER_DATA_DIR: ${PLAYWRIGHT_MCP_USER_DATA_DIR:-}
+      PLAYWRIGHT_MCP_OUTPUT_DIR: ${PLAYWRIGHT_MCP_OUTPUT_DIR:-}
+      HINDSIGHT_ENABLED: ${HINDSIGHT_ENABLED:-0}
+      HINDSIGHT_HOOKS_ENABLED: ${HINDSIGHT_HOOKS_ENABLED:-0}
+      HINDSIGHT_API_URL: ${HINDSIGHT_API_URL:-http://hindsight:8888}
+      HINDSIGHT_BANK_ID: ${HINDSIGHT_BANK_ID:-agent}
+      HINDSIGHT_API_KEY: ${HINDSIGHT_API_KEY:-}
+      HINDSIGHT_HOOK_TIMEOUT_SECONDS: ${HINDSIGHT_HOOK_TIMEOUT_SECONDS:-5}
+      CHROME_DISABLE_SANDBOX: ${CHROME_DISABLE_SANDBOX:-0}
+    healthcheck:
+      test: [CMD, /opt/agent-venv/bin/python, /opt/agent/scripts/healthcheck.py]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 4
+
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:1.0.0@sha256:a88678c038b0e4340822b02a5efc566c56d8176b5bffa731bc433fd37f978e4c
+    profiles: [memory]
+    restart: unless-stopped
+    environment:
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai-codex}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-5.4-mini}
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:-}
+      HINDSIGHT_API_LLM_CODEX_HOME: /home/hindsight/.hindsight-auth/codex
+      HINDSIGHT_API_LLM_MAX_CONCURRENT: ${HINDSIGHT_API_LLM_MAX_CONCURRENT:-1}
+      HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+      HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_KEY:-}
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+      - hindsight-auth:/home/hindsight/.hindsight-auth
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health', timeout=5).read()"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 6
+
+secrets:
+  vnc_password:
+    file: ./.secrets/vnc_password
+
+volumes:
+  agent-home:
+  hindsight-data:
+  hindsight-auth:

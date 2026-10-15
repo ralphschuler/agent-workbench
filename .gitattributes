@@ -1,0 +1,4 @@
+# Preserve exact upstream bytes, including license line endings and whitespace.
+skills/frontend-design/** -text -whitespace
+skills/skill-creator/** -text -whitespace
+docker/LICENSE.playwright -text -whitespace

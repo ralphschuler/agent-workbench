@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Start Chrome with accessibility enabled for the local CUA driver."""
+
+import os
+import sys
+
+
+arguments = [
+    "/usr/bin/google-chrome-stable",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--password-store=basic",
+    "--force-renderer-accessibility",
+]
+sandbox_setting = os.environ.get("CHROME_DISABLE_SANDBOX", "0")
+if sandbox_setting not in ("0", "1"):
+    sys.exit("CHROME_DISABLE_SANDBOX must be 0 or 1")
+if sandbox_setting == "1":
+    print("Chrome sandbox explicitly disabled for this isolated container.", file=sys.stderr)
+    arguments.append("--no-sandbox")
+os.execv(arguments[0], arguments + sys.argv[1:])

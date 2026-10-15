@@ -1,0 +1,21 @@
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!requirements.txt
+!docker/
+!docker/**
+!scripts/
+!scripts/**
+!skills/
+!skills/**
+!integrations/
+!integrations/**
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/.secrets
+# Backup orchestration runs on the Docker host, never inside the desktop.
+scripts/backup.py
+scripts/test-backup.*

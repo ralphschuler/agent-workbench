@@ -1,0 +1,24 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": false,
+      "chromiumSandbox": true,
+      "args": [
+        "--force-renderer-accessibility",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--password-store=basic"
+      ]
+    },
+    "contextOptions": {
+      "viewport": null
+    }
+  },
+  "capabilities": ["core"],
+  "saveSession": false,
+  "webmcp": false,
+  "console": {
+    "level": "warning"
+  }
+}

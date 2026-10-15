@@ -1,0 +1,98 @@
+{
+  "evaluation_mode": "simulation_only_no_real_desktop_calls",
+  "advertised_tool_contracts": {
+    "get_window_state": {
+      "required": [
+        "pid"
+      ],
+      "supported": [
+        "pid",
+        "window_id",
+        "session",
+        "since",
+        "query",
+        "include_screenshot",
+        "screenshot_out_file"
+      ],
+      "window_id_type": "integer"
+    },
+    "run_steps": {
+      "required": [
+        "steps"
+      ],
+      "supported": [
+        "pid",
+        "window_id",
+        "session",
+        "steps",
+        "observe",
+        "foreground_fallback"
+      ],
+      "step_shape": {
+        "tool": "action name",
+        "args": "that action arguments"
+      },
+      "observe": {},
+      "foreground_fallback_default": false
+    },
+    "click": {
+      "supported": [
+        "pid",
+        "window_id",
+        "session",
+        "element_token",
+        "x",
+        "y",
+        "capture_id",
+        "delivery_mode"
+      ]
+    }
+  },
+  "target": {
+    "pid": 241,
+    "window_id": 4194318,
+    "title": "Report export"
+  },
+  "previous_observation": {
+    "snapshot_id": "s0000000a",
+    "capture_id": "old-capture",
+    "warning": "The application has navigated since this snapshot. All old tokens and pixels are stale."
+  },
+  "fresh_get_window_state_result": {
+    "snapshot_id": "s0000002a",
+    "capture_id": "fresh-capture",
+    "elements": [
+      {
+        "element_token": "s0000002a:11",
+        "role": "checkbox",
+        "label": "Include summary",
+        "selected": false
+      },
+      {
+        "element_token": "s0000002a:12",
+        "role": "button",
+        "label": "Export",
+        "enabled": true
+      }
+    ]
+  },
+  "run_steps_result": {
+    "steps": [
+      {
+        "index": 0,
+        "ok": true,
+        "effect": "Include summary selected"
+      },
+      {
+        "index": 1,
+        "ok": false,
+        "error": "background_unavailable",
+        "effect": "Export action not delivered"
+      }
+    ],
+    "observation": {
+      "snapshot_id": "s0000002b",
+      "text": "Include summary selected; Export still available; no export completion evidence"
+    }
+  }
+}
