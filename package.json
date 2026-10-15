@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "Pinned coding CLIs for Agent Workbench",
-  "engines": {"node": ">=24 <25"},
+  "engines": {
+    "node": ">=24 <25"
+  },
   "allowScripts": {
     "@anthropic-ai/claude-code": true
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "2.1.300",
-    "@openai/codex": "0.162.1"
+    "@openai/codex": "0.162.1",
+    "@playwright/mcp": "0.0.83"
   }
 }

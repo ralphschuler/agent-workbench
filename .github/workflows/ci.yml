@@ -47,6 +47,18 @@ jobs:
       - name: Validate Compose
         run: docker compose config --quiet
 
+  backup:
+    name: Backup and restore
+    needs: validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Test encrypted backup and isolated restore
+        run: bash scripts/test-backup.sh
+
   container:
     name: Container build
     needs: validation
@@ -69,13 +81,13 @@ jobs:
           no-cache: ${{ github.event_name == 'schedule' }}
           cache-from: type=gha,scope=agent-workbench
           cache-to: type=gha,mode=max,scope=agent-workbench
-      - name: Smoke-test desktop, agent CLIs, and CUA MCP
+      - name: Smoke-test desktop, agent CLIs, CUA and Playwright MCP
         run: bash scripts/test-container.sh agent-workbench:ci
 
   publish:
     name: Publish GHCR image
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main')
-    needs: [validation, container]
+    needs: [validation, backup, container]
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -119,7 +131,7 @@ jobs:
   release:
     name: Create GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [validation, container, publish]
+    needs: [validation, backup, container, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -141,20 +153,22 @@ jobs:
   required:
     name: Required checks
     if: always()
-    needs: [validation, container, publish, release]
+    needs: [validation, backup, container, publish, release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       VALIDATION: ${{ needs.validation.result }}
+      BACKUP: ${{ needs.backup.result }}
       CONTAINER: ${{ needs.container.result }}
       PUBLISH: ${{ needs.publish.result }}
       RELEASE: ${{ needs.release.result }}
       EXPECT_PUBLICATION: ${{ github.event_name == 'push' || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main') }}
       EXPECT_RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     steps:
-      - name: Require successful validation and image build
+      - name: Require successful validation, backup, and image build
         run: |
           test "$VALIDATION" = success
+          test "$BACKUP" = success
           test "$CONTAINER" = success
           if [ "$EXPECT_PUBLICATION" = true ]; then
             test "$PUBLISH" = success

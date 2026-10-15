@@ -6,7 +6,7 @@ The image carries these skills under `/opt/agent/skills`:
 | --- | --- | --- |
 | `frontend-design` | Deliberate visual design for frontend work | Anthropic |
 | `skill-creator` | Draft, evaluate, and improve skills | Anthropic |
-| `desktop` | Observe, act, and verify with Cua Driver | This repository |
+| `desktop` | Browser actions with Playwright and desktop actions with Cua | This repository |
 | `decisions` | Batched typed Jev decisions with uncertainty | This repository |
 | `memory` | Hindsight recall and retention workflow | This repository |
 
@@ -26,12 +26,12 @@ that runtime is configured. The repository does not add model credentials.
 ## Updating desktop and Jev guidance
 
 The `desktop` and `decisions` skills keep their existing names so existing
-discovery and links continue to work. They were revised using the installed
-skill-creator workflow:
+discovery and links continue to work. Use the installed skill-creator workflow
+to revise them:
 
 1. Snapshot the original skills outside the checkout.
-2. Describe the intended triggers and workflows, using the installed Cua and
-   Jev tool schemas rather than assumed APIs.
+2. Describe the intended triggers and workflows, using the installed browser,
+   desktop, and Jev tool schemas rather than assumed APIs.
 3. Run the same fixture and prompt against the original and revised skill in
    independent, parallel agents.
 4. Grade explicit expectations, generate a benchmark, and create the upstream
@@ -43,13 +43,17 @@ checkbox/export sequence, partial failure, background-only authorization, and
 honest completion reporting. The Jev scenario covers choice ranking, batched
 readiness questions, confident-but-insufficient evidence, mixed uncertainty,
 missing credentials, and avoiding a model call for a directly observed Python
-version.
+version. Both skills also include a browser-delivery scenario covering fresh
+Playwright targets, batched Jev checks, uncertain evidence, an authorized option
+selection, and verification without placing an order.
 
 These evaluations are explicitly **planning simulations**. The agents read
 stored tool observations and produce labelled proposed calls; they do not
 operate a live desktop, call Jev, or establish model latency or task success.
-They use one run per version and one scenario per skill. Passing them is a
-useful regression signal, not evidence of a general performance improvement.
+Each skill has two tracked scenarios. The original comparisons used one
+scenario per skill; the browser comparison applies both skills to their shared
+scenario. These checks use one run per version, so passing them is a narrow
+regression signal rather than evidence of general quality or speed gains.
 
 Reusable prompts and fixtures are tracked in the repository. Keep generated
 snapshots, run outputs, grades, benchmarks, and review pages local and untracked.

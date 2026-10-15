@@ -1,6 +1,6 @@
 ---
 name: decisions
-description: Use Jev to compare explicit alternatives or answer several evidence-based yes/no questions in one call, retaining probabilities and abstention. Use for ambiguous UI choices, task routing, or multiple checks sharing an observation. Skip Jev for trivial facts, a clear control label, arithmetic, open-ended prose, or missing external evidence; gather evidence or use normal reasoning first.
+description: Use Jev to compare explicit alternatives or answer several evidence-based yes/no questions in one call, retaining probabilities and abstention. Use for ambiguous Playwright browser or CUA desktop choices, task routing, or multiple checks sharing an observation. Skip Jev for trivial facts, a clear DOM or control label, arithmetic, open-ended prose, or missing external evidence; gather evidence or use normal reasoning first.
 ---
 
 The `jev` MCP server calls the official TypeSafe SDK, normally with
@@ -36,9 +36,16 @@ Use only evidence relevant to the question. An optional image is sent to
 TypeSafe with the context. Use an explicitly selected PNG/JPEG no larger than
 10 MiB inside `JEV_IMAGE_ROOTS`, default `/workspace:/tmp`; omit the image when
 text or semantic state is sufficient. Do not send credentials or unrelated
-desktop content. Use the path returned by Cua's `screenshot_out_file` capture
-when a GUI image is needed, then keep capture identity and action targeting in
-Cua rather than expecting Jev to return them.
+desktop content. Start browser questions with fresh Playwright
+`browser_snapshot` text; start native desktop questions with Cua state. Use the
+path returned by `browser_take_screenshot` or Cua's `screenshot_out_file` only
+when an image is useful. Keep browser refs and Cua capture identity with the
+observation that produced them rather than expecting Jev to return them.
+
+For a browser decision, the loop is fresh snapshot, one useful batched Jev
+request, an authorized Playwright action with a current ref, and verification
+of the new page state. Reobserve if the DOM changes while deciding. Do not send
+a fact already explicit in the snapshot through Jev merely to restate it.
 
 ## Preserve uncertainty and action boundaries
 
@@ -58,7 +65,8 @@ On abstention, gather a new relevant observation, revise an unclear question,
 or continue normal reasoning. Do not repeat the same uncertain request without
 new evidence. A confident answer cannot authorize an action, override user
 intent, establish an external fact, or prove that an application changed.
-Refresh changed UI evidence and verify the result through Cua after acting.
+Refresh changed UI evidence and verify the result through Playwright for page
+actions or Cua for desktop actions.
 
 If `status` is `unconfigured`, `timeout`, `unavailable`, or `invalid_response`,
 continue with normal reasoning and available tools. Request a

@@ -18,6 +18,24 @@
         "Python 3.12.14 is answered directly from observed command output without a Jev request for this trivial fact.",
         "No image upload is invented, and the plan does not lower confidence_threshold to force a selection."
       ]
+    },
+    {
+      "id": 2,
+      "prompt": "In this planning simulation, compare the checkout delivery policies and select an option only if it meets arrival by Friday and shipping at most 10 euros. Leave Place order untouched. The old page ref is stale. Use the supplied fresh snapshot and Jev assessment fixture; batch the delivery questions sharing that evidence. Explain why the initial result permits no selection. Then use the refreshed delivery evidence, plan any useful further Jev decision or reason directly when its facts suffice, select the qualifying option with the current Playwright target, and verify the page outcome. Read the shipping fee directly; do not use Jev just to restate it. Use only the fixture, no real browser, network, login, payment, or inference calls. Save response.json with simulation=true, phases (observations, planned_calls, and interpretation), selected_option, shipping_fee_eur, completed, remaining, and summary; also save rationale.md.",
+      "expected_output": "A simulation following fresh browser evidence, one batched initial Jev assessment, uncertainty-driven reobservation, a current-target authorized shipping selection, and verification without purchasing.",
+      "files": [
+        "evals/files/browser-delivery.json"
+      ],
+      "expectations": [
+        "The output is labelled simulation and does not claim browser execution, paid inference, or measured speed improvements.",
+        "A fresh browser_snapshot is planned before interactions; stale ref e3 is not used as an action target.",
+        "The first observation feeds one jev_assess request with both named delivery questions together, using context and a questions mapping.",
+        "Both initial uncertain outcomes remain uncertain; no shipping click or lower threshold forces a selection before fresh delivery evidence.",
+        "After the updated page evidence, Express is selected using either the accepted supplied decision with abstain=false or direct reasoning from explicit delivery facts.",
+        "The Playwright shipping click uses target=e23 rather than the obsolete e14 or a ref argument, followed by verification of the changed page state.",
+        "No Place order target (e19, e29, or e39), authentication, or payment action is planned; only the delivery option is selected.",
+        "No screenshot/image upload is invented for this text-sufficient scenario, and the observed 8 euro fee is returned without a separate Jev fact query."
+      ]
     }
   ]
 }

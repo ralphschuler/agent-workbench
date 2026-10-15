@@ -1,9 +1,10 @@
-# Jev decisions and Cua Driver
+# Jev decisions with Playwright and Cua
 
-The image connects agents to two separate MCP servers: Cua Driver observes and
-operates the desktop; Jev answers typed questions about evidence the agent
-supplies. Jev runs on TypeSafe's hosted API. No Jev weights or GPU runtime are
-installed in the image.
+The image connects agents to Playwright MCP for browser pages, Cua Driver for
+the desktop, and Jev for typed questions about supplied evidence. The agent
+gathers current observations, asks Jev when decision support is useful, then
+acts and verifies through the appropriate browser or desktop tool. Jev runs
+on TypeSafe's hosted API. No Jev weights or GPU runtime are installed locally.
 
 The official integration uses `typesafe-sdk==0.7.5` and its default
 `jev-latest` model. The separate PyPI package named `jev` requires Python 3.14
@@ -55,11 +56,11 @@ Example tool arguments:
 
 ```json
 {
-  "context": "The current task is to inspect the installed Python version. A terminal is available.",
-  "question": "Which interaction is sufficient?",
+  "context": "A checkout snapshot lists Standard delivery in 3–5 business days for 4 euros and Express next business day for 8 euros, subject to an ordering cutoff that is not shown. Delivery by Friday is required, within a 10 euro shipping budget.",
+  "question": "Which delivery option is supported by the available evidence?",
   "candidates": {
-    "terminal": "Run python --version and read the output.",
-    "desktop": "Open a browser window and inspect the desktop."
+    "standard": "Select Standard only if its delivery window meets the required date.",
+    "express": "Select Express only if its cutoff and delivery promise meet the required date."
   }
 }
 ```
@@ -91,19 +92,55 @@ result if helpful, and explains its answer from that evidence. For open-ended
 research or missing information, gather facts first. A high confidence score
 does not establish truth or override user instructions.
 
-## Make desktop work faster
+## Browser decisions with Playwright
+
+The official `@playwright/mcp` 0.0.83 server is registered as `playwright`.
+Use its accessibility/DOM snapshot for browser page content. Cua remains
+available for native application controls, browser chrome, and desktop surfaces.
+Keep the requested interaction method and the authorized task scope intact.
+
+The normal loop is:
+
+1. Obtain a fresh `browser_snapshot({})` for the intended page or tab. Read the
+   relevant text and current element refs before choosing an action.
+2. For an ambiguous choice or several checks sharing that observation, send
+   the relevant snapshot text in one `jev_decide` or `jev_assess` request.
+   A directly observed price, clear label, or trivial navigation step usually
+   needs no Jev call. Ask for missing evidence when the result abstains or a
+   required check remains uncertain.
+3. Perform the authorized Playwright action using a current target. Version
+   0.0.83 uses `target`, not an argument named `ref`: for a returned ref `e23`,
+   a click is `browser_click({"target":"e23","element":"Express shipping"})`.
+   The example ref must be replaced by the actual current one. Refresh after
+   navigation, a changed DOM, a stale-target error, or a Cua action that changes
+   the page. Jev does not return browser refs or make old ones current.
+4. Verify the action's returned page state or take another snapshot. Selecting
+   a shipping option and placing an order are separate actions; a confident
+   Jev decision neither authorizes the purchase nor proves it happened.
+
+Use `browser_take_screenshot({"scale":"css","type":"png"})` only when visual
+evidence adds something the snapshot lacks. This version requires `scale`.
+For an intended Jev upload, use the screenshot's returned local path; the
+default artifact directory `/workspace/.browser-artifacts` is inside the
+default image roots. Do not invent a filename or upload a screenshot merely
+because a browser is present. The Playwright launcher uses the installed Chrome
+with its own persistent profile; page refs belong to that browser context.
+
+## Reduce browser and desktop overhead
 
 ```mermaid
 flowchart LR
   A[User task] --> B[Agent gathers current evidence]
-  B --> C[Cua accessibility or browser state]
-  B --> D[Relevant Hindsight recall]
+  B --> C[Playwright page snapshot]
+  B --> D[Cua desktop state]
+  B --> M[Relevant Hindsight recall]
   C --> E[Jev batches typed questions]
   D --> E
+  M --> E
   E --> F{Enough evidence and confidence?}
   F -->|Yes| G[Agent chooses permitted next step]
   F -->|No| H[Gather missing evidence or reason further]
-  G --> I[Cua action and outcome verification]
+  G --> I[Browser or desktop action and verification]
 ```
 
 Useful improvements already present:
@@ -118,6 +155,9 @@ Useful improvements already present:
   agent instead of silently choosing an action at a 0.5 cutoff.
 - Start with exact shell, browser, or accessibility evidence when available.
   Send a screenshot when visual context contributes to the question.
+- Use Playwright for page actions and state verification. Keep Cua for desktop
+  interaction when needed; changing tools does not supply missing evidence or
+  extend the authorized task. Skip Jev when the answer is already explicit.
 
 Cua Driver 0.35.4 supplies additional useful mechanisms:
 
@@ -172,6 +212,8 @@ Verified source references:
 - [TypeSafe introduction](https://docs.typesafe.ai/introduction)
 - [Official Python SDK](https://github.com/typesafe-ai/typesafe-sdk-python)
 - [Official SDK package and license](https://pypi.org/project/typesafe-sdk/0.7.5/)
+- [Official Playwright MCP](https://github.com/microsoft/playwright-mcp)
+- [Pinned Playwright MCP package](https://www.npmjs.com/package/@playwright/mcp/v/0.0.83)
 - [Cua Driver source](https://github.com/trycua/cua/tree/main/libs/cua-driver)
 - [Cua Driver Linux guide](https://github.com/trycua/cua/blob/main/libs/cua-driver/rust/Skills/cua-driver/LINUX.md)
 - [Cua MCP protocol and bundled skills](https://github.com/trycua/cua/blob/main/libs/cua-driver/docs/mcp-protocol-and-skills.md)

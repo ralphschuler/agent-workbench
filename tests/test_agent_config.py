@@ -134,6 +134,29 @@ class AgentConfigurationTests(unittest.TestCase):
         self.assertTrue(any("mcpServers/github" in warning for warning in warnings))
         self.assertEqual(self.read(".claude.json")["mcpServers"]["github"], custom)
 
+    def test_playwright_uses_local_wrapper_and_only_desktop_runtime_env_names(self):
+        self.configure()
+        expected = {
+            "command": "/opt/agent-venv/bin/python",
+            "args": [str(self.root / "scripts/playwright-mcp.py")],
+        }
+        self.assertEqual(self.read(".claude.json")["mcpServers"]["playwright"], expected)
+        expected["env_vars"] = [
+            "DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME", "CHROME_DISABLE_SANDBOX",
+            "PLAYWRIGHT_MCP_USER_DATA_DIR", "PLAYWRIGHT_MCP_OUTPUT_DIR",
+        ]
+        self.assertEqual(self.read(".codex/config.toml")["mcp_servers"]["playwright"], expected)
+
+    def test_preserves_custom_playwright_servers_for_both_clients(self):
+        custom = {"command": "my-playwright", "args": ["--my-profile"]}
+        self.write(".claude.json", {"mcpServers": {"playwright": custom}})
+        self.write(".codex/config.toml", '[mcp_servers.playwright]\ncommand = "my-playwright"\nargs = ["--my-profile"]\n')
+        warnings = self.configure()
+        self.assertEqual(self.read(".claude.json")["mcpServers"]["playwright"], custom)
+        self.assertEqual(self.read(".codex/config.toml")["mcp_servers"]["playwright"], custom)
+        self.assertTrue(any("mcpServers/playwright" in warning for warning in warnings))
+        self.assertTrue(any("mcp_servers/playwright" in warning for warning in warnings))
+
     def test_preserves_custom_settings_comments_and_permissions(self):
         path = self.write(".codex/config.toml", '# Keep me\nmodel = "chosen"\n[features]\ncustom = true\n')
         path.chmod(0o640)

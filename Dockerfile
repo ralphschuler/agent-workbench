@@ -46,7 +46,7 @@ rm -f /tmp/google-linux-signing-key.asc
 rm -rf /var/lib/apt/lists/*
 
 cd /opt/agent-tools
-npm ci --omit=dev --no-audit --no-fund
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --omit=dev --no-audit --no-fund
 npm cache clean --force
 python3 -m venv /opt/agent-venv
 /opt/agent-venv/bin/python -m pip install --no-cache-dir \

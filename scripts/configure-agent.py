@@ -240,18 +240,23 @@ def configure(home=None, env=None, root=ROOT):
     authenticated = bool(env.get("HINDSIGHT_API_KEY"))
     jev = {"command": PYTHON, "args": [str(root / "integrations" / "jev" / "server.py")]}
     cua = {"command": "cua-driver", "args": ["mcp"]}
+    playwright = {"command": PYTHON, "args": [str(root / "scripts" / "playwright-mcp.py")]}
     github = {"command": PYTHON, "args": [str(root / "scripts" / "github-mcp.py")]}
     for name in ("codex", "claude"):
         config = settings[name]
         section = "mcp_servers" if name == "codex" else "mcpServers"
         driver = copy.deepcopy(jev)
         desktop = copy.deepcopy(cua)
+        browser = copy.deepcopy(playwright)
         github_server = copy.deepcopy(github)
         if name == "codex":
             # Codex clears most process variables for stdio MCP subprocesses.
             # Preserve the desktop bus/display and the integration's documented
             # runtime controls explicitly; secrets still remain environment-only.
             desktop["env_vars"] = ["DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME"]
+            browser["env_vars"] = ["DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME",
+                                   "CHROME_DISABLE_SANDBOX", "PLAYWRIGHT_MCP_USER_DATA_DIR",
+                                   "PLAYWRIGHT_MCP_OUTPUT_DIR"]
             driver["env_vars"] = ["TYPESAFE_API_KEY", "TYPESAFE_DEFAULT_MODEL",
                                   "JEV_TIMEOUT_SECONDS", "JEV_IMAGE_ROOTS"]
             github_server["env_vars"] = ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN",
@@ -259,6 +264,7 @@ def configure(home=None, env=None, root=ROOT):
         else:
             driver["env"] = {"TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}"}
         config.sync((section, "cua"), desktop)
+        config.sync((section, "playwright"), browser)
         config.sync((section, "jev"), driver)
         config.sync((section, "github"), github_server)
         hindsight = MISSING

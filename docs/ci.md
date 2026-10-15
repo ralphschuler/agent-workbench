@@ -2,13 +2,16 @@
 
 `CI` validates Python integrations, the dependency merge policy, shell syntax,
 and Compose configuration. Every run builds the complete `linux/amd64` desktop
-image and smoke-tests desktop startup, the agent CLIs, and CUA MCP. Pull request
-jobs use no registry credentials. After those checks pass, pushes to `main` and
+image and smoke-tests desktop startup, the agent CLIs, CUA and Playwright MCP.
+Pull request jobs use no registry credentials. A separate **Backup and restore** job runs the
+isolated encrypted Restic roundtrip on every event, alongside the desktop build.
+After all those checks pass, pushes to `main` and
 `v*` tags publish `ghcr.io/ralphschuler/agent-workbench` with OCI labels,
 provenance, and an SBOM.
 For `v*` tag pushes, a separate job then creates a GitHub Release with generated
-release notes. It runs only after validation, the container smoke test, and GHCR
-publication succeed. **Required checks** also requires that release job to pass.
+release notes. It runs only after validation, backup/restore, the container
+smoke test, and GHCR publication succeed. **Required checks** also requires that
+release job to pass.
 BuildKit caches are shared between runs. GitHub Actions use immutable commit
 pins; Dependabot maintains those pins.
 
@@ -80,6 +83,20 @@ Changing a dependency also has to pass the complete container build. Python
 requirements must retain valid hashes; regenerate the project's requirements
 lock when a change needs it rather than disabling hash verification.
 
+## Backup integration check
+
+`bash scripts/test-backup.sh` uses disposable Compose projects and fixture data.
+It checks cold backup/restart, encrypted restoration, preserved data ownership
+and permissions, configuration recovery, recovery-key exclusion, wrong-key and
+tamper detection, and refusal to overwrite existing destination data. It needs
+Docker Engine, Compose, and Python 3 without additional Python packages.
+
+The test uses the official Restic image pinned by digest in `scripts/backup.py`.
+It only needs registry access to pull that image when absent; fixture services
+and backup helpers run with networking disabled. It requires no provider keys,
+registry login, or access to production backups. **Required checks**, GHCR
+publication, and release creation all require this job to succeed.
+
 ## Local checks
 
 ```sh
@@ -87,6 +104,7 @@ python3 -m unittest discover -s tests -v
 node --test .github/scripts/*.test.cjs
 for script in scripts/*.sh; do bash -n "$script"; done
 docker compose config --quiet
+bash scripts/test-backup.sh
 docker build --platform linux/amd64 -t agent-workbench:dev .
 bash scripts/test-container.sh agent-workbench:dev
 ```
