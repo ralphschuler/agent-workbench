@@ -25,7 +25,9 @@ class InitializationTests(unittest.TestCase):
             self.assertNotIn(password, result.stdout + result.stderr)
             self.assertNotIn(token, result.stdout + result.stderr)
             if os.name == 'posix':
-                self.assertEqual((target / '.secrets/vnc_password').stat().st_mode & 0o777, 0o600)
+                self.assertEqual((target / '.secrets').stat().st_mode & 0o777, 0o700)
+                self.assertEqual((target / '.secrets/vnc_password').stat().st_mode & 0o777, 0o444)
+                self.assertEqual((target / 'workspace').stat().st_mode & 0o777, 0o755)
                 self.assertEqual((target / '.env').stat().st_mode & 0o777, 0o600)
             (target / '.env').write_text(config + '\n# preserved user setting\n')
             initialize()

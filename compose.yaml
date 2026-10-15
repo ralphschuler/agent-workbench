@@ -17,13 +17,13 @@ services:
       - "127.0.0.1:${DESKTOP_PORT:-6080}:6080"
     volumes:
       - agent-home:/home/agent
+      - hindsight-auth:/home/agent/.hindsight-auth
       - ./workspace:/workspace
     secrets:
       - vnc_password
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       TYPESAFE_DEFAULT_MODEL: ${TYPESAFE_DEFAULT_MODEL:-jev-latest}
       JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-8}
@@ -46,13 +46,16 @@ services:
     profiles: [memory]
     restart: unless-stopped
     environment:
-      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
-      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-4.1-mini}
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai-codex}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-5.4-mini}
       HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:-}
+      HINDSIGHT_API_LLM_CODEX_HOME: /home/hindsight/.hindsight-auth/codex
+      HINDSIGHT_API_LLM_MAX_CONCURRENT: ${HINDSIGHT_API_LLM_MAX_CONCURRENT:-1}
       HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
       HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_KEY:-}
     volumes:
       - hindsight-data:/home/hindsight/.pg0
+      - hindsight-auth:/home/hindsight/.hindsight-auth
     healthcheck:
       test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health', timeout=5).read()"]
       interval: 15s
@@ -67,3 +70,4 @@ secrets:
 volumes:
   agent-home:
   hindsight-data:
+  hindsight-auth:

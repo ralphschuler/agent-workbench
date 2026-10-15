@@ -1,7 +1,7 @@
 # Agent Desktop
 
 Ubuntu-24.04-Desktop für Coding- und Computer-Use-Agenten: Chrome, XFCE und
-Terminal, Codex, Claude Code und Gemini CLI, Cua Driver, Jev und optional
+Terminal, Codex, Claude Code, Cua Driver, Jev und optional
 Hindsight. Das Image läuft als Benutzer `agent` (UID 1000). Der Desktop und alle
 Agenten teilen dieselbe X11- und D-Bus-Sitzung.
 
@@ -18,7 +18,6 @@ docker compose ps
 docker compose exec agent codex
 # Alternativen:
 docker compose exec agent claude
-docker compose exec agent gemini
 ```
 
 `scripts/init.sh` erzeugt lokale Konfiguration und ein zufälliges achtstelliges
@@ -40,7 +39,7 @@ anmelden. Nach Änderungen an `.env` den Container neu erstellen:
 docker compose up -d --force-recreate agent
 ```
 
-Der Chrome-Sandbox bleibt standardmäßig eingeschaltet. Je nach Host sind
+Die Chrome-Sandbox bleibt standardmäßig eingeschaltet. Je nach Host sind
 zusätzliche Namespace-Rechte nötig; siehe [Desktop und Sandbox](docs/docker.md).
 Das Image erhält weder privilegierten Modus noch Zugriff auf den Docker-Socket.
 
@@ -48,11 +47,11 @@ Das Image erhält weder privilegierten Modus noch Zugriff auf den Docker-Socket.
 
 | Bestandteil | Umsetzung |
 | --- | --- |
-| Coding-CLIs | Codex, Claude Code und Gemini CLI; npm-Versionen und Integrität im Lockfile |
+| Coding-CLIs | Codex und Claude Code; npm-Versionen und Integrität im Lockfile |
 | Computer Use | `cua-driver mcp` über stdio; gemeinsame Desktop-Sitzung und Accessibility |
 | Jev | `jev_decide` und `jev_assess` als MCP-Werkzeuge mit offizieller Typesafe-SDK |
 | Hindsight | Optionaler Compose-Dienst, HTTP-MCP und opt-in Recall-/Retain-Hooks |
-| Common Skills | Desktop, Jev-Entscheidungen, Memory sowie Anthropic Frontend Design und Skill Creator für die drei CLIs |
+| Common Skills | Desktop, Jev-Entscheidungen, Memory sowie Anthropic Frontend Design und Skill Creator für beide CLIs |
 | Updates und Releases | Dependabot-Prüfungen, kontrollierte Patch-/Minor-Merges, GHCR-Pipeline |
 
 Jev wird mit `TYPESAFE_API_KEY` aktiviert. Es bewertet konkrete Alternativen und
@@ -61,8 +60,19 @@ Ergebnisse führen zu einer Enthaltung. Screenshots werden nur auf ausdrücklich
 Werkzeugaufruf hochgeladen. Details, Beispiele und der Plan zur Messung von
 Geschwindigkeit und Entscheidungsqualität stehen in [Jev und CUA](docs/jev.md).
 
-Für Hindsight die `.env` um den passenden Modellanbieter-Zugang ergänzen und
-den von `init.sh` erzeugten `HINDSIGHT_API_KEY` für die lokale API verwenden.
+Hindsight verwendet standardmäßig eine eigene Codex-Anmeldung mit dem
+ChatGPT-Konto; ein zusätzlicher OpenAI-API-Schlüssel ist dafür nicht nötig.
+Nach dem Desktop-Build auf dem Docker-Host anmelden:
+
+```sh
+python3 scripts/hindsight-login.py
+python3 scripts/hindsight-login.py check
+```
+
+Der Helfer legt die Anmeldung im separaten Volume `hindsight-auth` ab. Hindsight
+verwendet daraus OAuth direkt zum Codex-Backend; es startet keinen Codex-Daemon.
+Die normale interaktive Codex-Anmeldung im Desktop bleibt getrennt.
+Den von `init.sh` erzeugten `HINDSIGHT_API_KEY` für die lokale Speicher-API verwenden.
 Bei einer manuell angelegten `.env` einen eigenen zufälligen API-Schlüssel setzen.
 `HINDSIGHT_ENABLED=1`
 registriert MCP; `HINDSIGHT_HOOKS_ENABLED=1` aktiviert zusätzlich automatische
@@ -73,11 +83,13 @@ docker compose --profile memory up --build -d
 docker compose --profile memory ps
 ```
 
+Eine bereits vorhandene `.env` behält ihre Werte: bei der Umstellung
+`HINDSIGHT_API_LLM_PROVIDER=openai-codex` und
+`HINDSIGHT_API_LLM_MODEL=gpt-5.4-mini` setzen. Der native Claude-Code-Anbieter ist
+eine weitere Hindsight-Option.
 Hindsight-API und UI erhalten keinen Host-Port. Die getrennten Zugangsdaten,
 Persistenz und Datenschutzgrenzen sind in [Hindsight](docs/hindsight.md)
-beschrieben. Für Gemini werden vorhandene `TYPESAFE_API_KEY` und gegebenenfalls
-`HINDSIGHT_API_KEY` explizit in der Umgebungsfilterung freigegeben; diese Freigabe
-gilt dort für alle MCP-Server. Eigene Blockierregeln bleiben erhalten.
+beschrieben.
 
 Der Konfigurationsgenerator ergänzt verwaltete MCP-Einträge, Hook-Kommandos und
 Skill-Verknüpfungen. Vorhandene Benutzereinstellungen und Änderungen bleiben

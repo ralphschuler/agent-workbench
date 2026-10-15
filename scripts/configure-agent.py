@@ -149,36 +149,6 @@ class Settings:
             elif event in self.document["hooks"]:
                 del self.document["hooks"][event]
 
-    def sync_allowed_key(self, name, enabled):
-        """Gemini sanitizes before expanding MCP env and HTTP header values."""
-        keys = ("security", "environmentVariableRedaction", "allowed")
-        identity = "allowed/" + name
-        parent = self.parent(keys, create=enabled)
-        if parent is None:
-            if enabled:
-                self.warnings.append(f"Preserved conflicting security settings in {self.path}")
-            return
-        allowed = parent.get("allowed", [])
-        blocked = parent.get("blocked", [])
-        if not isinstance(allowed, list) or not isinstance(blocked, list):
-            if enabled:
-                self.warnings.append(f"Preserved conflicting security settings in {self.path}")
-            return
-        if enabled and name in {value.upper() for value in blocked if isinstance(value, str)}:
-            self.warnings.append(f"{name} remains blocked by user settings in {self.path}; "
-                                 "the corresponding MCP integration cannot authenticate")
-            return
-        result = list(allowed)
-        if self.previous.get(identity) is True and name in result:
-            result.remove(name)
-        if enabled:
-            if name in result:
-                return
-            result.append(name)
-            self.managed[identity] = True
-        if result != allowed:
-            parent["allowed"] = result
-
     def save(self):
         if self.document != self.before:
             content = (tomlkit.dumps(self.document) if self.toml else
@@ -206,7 +176,7 @@ def link_skills(home, root, warnings):
     for skill in sorted(source.iterdir()):
         if not skill.is_dir() or not (skill / "SKILL.md").is_file():
             continue
-        for folder in (".agents", ".claude", ".gemini"):
+        for folder in (".agents", ".claude"):
             target = home / folder / "skills" / skill.name
             if target.is_symlink() and target.resolve() == skill.resolve():
                 continue
@@ -234,7 +204,6 @@ def configure(home=None, env=None, root=ROOT):
         "codex-hooks": (codex_home / "hooks.json", False),
         "claude": (home / ".claude.json", False),
         "claude-hooks": (home / ".claude" / "settings.json", False),
-        "gemini": (home / ".gemini" / "settings.json", False),
     }
     # Parse every existing document before making any changes.
     settings = {name: Settings(path, prior.get(str(path), {}), warnings, toml)
@@ -245,7 +214,7 @@ def configure(home=None, env=None, root=ROOT):
     authenticated = bool(env.get("HINDSIGHT_API_KEY"))
     jev = {"command": PYTHON, "args": [str(root / "integrations" / "jev" / "server.py")]}
     cua = {"command": "cua-driver", "args": ["mcp"]}
-    for name in ("codex", "claude", "gemini"):
+    for name in ("codex", "claude"):
         config = settings[name]
         section = "mcp_servers" if name == "codex" else "mcpServers"
         driver = copy.deepcopy(jev)
@@ -263,16 +232,13 @@ def configure(home=None, env=None, root=ROOT):
         config.sync((section, "jev"), driver)
         hindsight = MISSING
         if memory:
-            hindsight = ({"httpUrl": url} if name == "gemini" else
-                         {"type": "http", "url": url} if name == "claude" else {"url": url})
+            hindsight = {"type": "http", "url": url} if name == "claude" else {"url": url}
             if authenticated:
                 if name == "codex":
                     hindsight["bearer_token_env_var"] = "HINDSIGHT_API_KEY"
                 else:
                     hindsight["headers"] = {"Authorization": "Bearer ${HINDSIGHT_API_KEY}"}
         config.sync((section, "hindsight"), hindsight)
-    settings["gemini"].sync_allowed_key("TYPESAFE_API_KEY", bool(env.get("TYPESAFE_API_KEY")))
-    settings["gemini"].sync_allowed_key("HINDSIGHT_API_KEY", memory and authenticated)
     hook_command = shlex.join([PYTHON, str(root / "scripts" / "hindsight-hook.py")])
     for name in ("codex-hooks", "claude-hooks"):
         for event, action in (("UserPromptSubmit", "recall"), ("Stop", "retain")):

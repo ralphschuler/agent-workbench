@@ -51,7 +51,6 @@ class AgentConfigurationTests(unittest.TestCase):
         self.assertEqual(self.configure(), [])
         codex = self.read(".codex/config.toml")["mcp_servers"]
         claude = self.read(".claude.json")["mcpServers"]
-        gemini = self.read(".gemini/settings.json")["mcpServers"]
         self.assertEqual(codex["cua"], {
             "command": "cua-driver", "args": ["mcp"],
             "env_vars": ["DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME"],
@@ -60,10 +59,10 @@ class AgentConfigurationTests(unittest.TestCase):
             "TYPESAFE_API_KEY", "TYPESAFE_DEFAULT_MODEL", "JEV_TIMEOUT_SECONDS", "JEV_IMAGE_ROOTS",
         ])
         self.assertEqual(claude["jev"]["env"], {"TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}"})
-        self.assertEqual(gemini["jev"]["env"], claude["jev"]["env"])
         self.assertEqual(codex["jev"]["command"], "/opt/agent-venv/bin/python")
         self.assertNotIn("hindsight", codex)
         self.assertFalse((self.home / ".codex/hooks.json").exists())
+        self.assertFalse((self.home / ".gemini").exists())
 
     def test_repeated_start_is_byte_and_mtime_idempotent(self):
         self.configure(HINDSIGHT_ENABLED="1", HINDSIGHT_HOOKS_ENABLED="1")
@@ -76,14 +75,12 @@ class AgentConfigurationTests(unittest.TestCase):
         path.chmod(0o640)
         self.write(".claude.json", {"theme": "dark", "mcpServers": {"custom": {"command": "mine"}}})
         self.write(".claude/settings.json", {"permissions": {"allow": ["Read"]}})
-        self.write(".gemini/settings.json", {"ui": {"theme": "custom"}})
         self.configure()
         self.assertIn("# Keep me", path.read_text())
         self.assertEqual(self.read(".codex/config.toml")["model"], "chosen")
         self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
         self.assertEqual(self.read(".claude.json")["mcpServers"]["custom"], {"command": "mine"})
         self.assertEqual(self.read(".claude/settings.json")["permissions"], {"allow": ["Read"]})
-        self.assertEqual(self.read(".gemini/settings.json")["ui"], {"theme": "custom"})
 
     def test_conflicting_server_names_are_preserved_and_reported(self):
         self.write(".claude.json", {"mcpServers": {"cua": {"command": "my-driver"}}})
@@ -122,49 +119,16 @@ class AgentConfigurationTests(unittest.TestCase):
                 self.assertNotIn(secret, path.read_text(), str(path))
         codex = self.read(".codex/config.toml")["mcp_servers"]["hindsight"]
         claude = self.read(".claude.json")["mcpServers"]["hindsight"]
-        gemini = self.read(".gemini/settings.json")
         self.assertEqual(codex["bearer_token_env_var"], "HINDSIGHT_API_KEY")
         self.assertEqual(claude["type"], "http")
         self.assertEqual(claude["headers"]["Authorization"], "Bearer ${HINDSIGHT_API_KEY}")
-        self.assertEqual(gemini["mcpServers"]["hindsight"]["httpUrl"], "http://hindsight:8888/mcp/agent/")
-        self.assertEqual(gemini["security"]["environmentVariableRedaction"]["allowed"],
-                         ["TYPESAFE_API_KEY", "HINDSIGHT_API_KEY"])
 
-    def test_gemini_allows_jev_key_without_hindsight_and_removes_only_owned_allowance(self):
-        self.write(".gemini/settings.json", {"security": {"environmentVariableRedaction": {
-            "allowed": ["OTHER_KEY"],
-        }}})
-        self.configure(TYPESAFE_API_KEY="runtime-secret")
-        data = self.read(".gemini/settings.json")
-        self.assertNotIn("hindsight", data["mcpServers"])
-        self.assertEqual(data["security"]["environmentVariableRedaction"]["allowed"],
-                         ["OTHER_KEY", "TYPESAFE_API_KEY"])
-        self.assertNotIn("runtime-secret", json.dumps(data))
-        self.configure()
-        data = self.read(".gemini/settings.json")
-        self.assertEqual(data["security"]["environmentVariableRedaction"]["allowed"], ["OTHER_KEY"])
-
-    def test_gemini_respects_explicit_jev_key_block(self):
-        self.write(".gemini/settings.json", {"security": {"environmentVariableRedaction": {
-            "allowed": ["OTHER_KEY"], "blocked": ["TYPESAFE_API_KEY"],
-        }}})
-        warnings = self.configure(TYPESAFE_API_KEY="runtime-secret")
-        self.assertTrue(any("TYPESAFE_API_KEY remains blocked" in warning for warning in warnings))
-        self.assertTrue(any("cannot authenticate" in warning for warning in warnings))
-        security = self.read(".gemini/settings.json")["security"]["environmentVariableRedaction"]
-        self.assertEqual(security["allowed"], ["OTHER_KEY"])
-        self.assertEqual(security["blocked"], ["TYPESAFE_API_KEY"])
-
-    def test_gemini_security_allowlist_preserves_other_entries_and_block_rules(self):
-        self.write(".gemini/settings.json", {"security": {"environmentVariableRedaction": {
-            "allowed": ["OTHER_KEY"], "blocked": ["HINDSIGHT_API_KEY"], "enabled": True,
-        }}})
-        warnings = self.configure(HINDSIGHT_ENABLED="1", HINDSIGHT_API_KEY="secret")
-        self.assertTrue(any("remains blocked" in warning for warning in warnings))
-        security = self.read(".gemini/settings.json")["security"]["environmentVariableRedaction"]
-        self.assertEqual(security["allowed"], ["OTHER_KEY"])
-        self.assertEqual(security["blocked"], ["HINDSIGHT_API_KEY"])
-        self.assertTrue(security["enabled"])
+    def test_existing_unmanaged_client_files_remain_untouched(self):
+        path = self.write(".gemini/settings.json", "{user-owned config; do not parse or replace}")
+        before = path.read_bytes(), path.stat().st_mtime_ns
+        self.configure(HINDSIGHT_ENABLED="1", HINDSIGHT_HOOKS_ENABLED="1")
+        self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
+        self.assertFalse((path.parent / "skills").exists())
 
     def test_skill_links_preserve_existing_skills(self):
         existing = self.home / ".claude/skills/desktop"
@@ -173,8 +137,7 @@ class AgentConfigurationTests(unittest.TestCase):
         warnings = self.configure()
         self.assertTrue(any("Preserved existing skill" in warning for warning in warnings))
         self.assertEqual((existing / "SKILL.md").read_text(), "My skill")
-        for folder in (".agents", ".gemini"):
-            self.assertEqual((self.home / folder / "skills/desktop").resolve(), self.root / "skills/desktop")
+        self.assertEqual((self.home / ".agents/skills/desktop").resolve(), self.root / "skills/desktop")
 
     def test_invalid_json_is_reported_before_any_settings_are_written(self):
         path = self.write(".claude.json", "{broken")

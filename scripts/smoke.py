@@ -55,7 +55,7 @@ async def check_cua(pid: int, marker: Path):
 def main():
     assert os.getuid() != 0, 'Desktop must run as a regular user'
     subprocess.run(['python', '/opt/agent/scripts/healthcheck.py'], check=True, timeout=15)
-    for command in ('codex', 'claude', 'gemini', 'google-chrome'):
+    for command in ('codex', 'claude', 'google-chrome'):
         version = subprocess.check_output([command, '--version'], text=True, timeout=45).strip()
         assert version, f'{command} has no version output'
         print(f'{command}: {version}')

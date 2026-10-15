@@ -116,17 +116,41 @@ jobs:
           cache-from: type=gha,scope=agent-desktop
           cache-to: type=gha,mode=max,scope=agent-desktop
 
+  release:
+    name: Create GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [validation, container, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Create release with generated notes if absent
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            printf 'Release %s already exists; preserving it.\n' "$RELEASE_TAG"
+          else
+            gh release create "$RELEASE_TAG" --repo "$GH_REPO" \
+              --verify-tag --generate-notes --title "$RELEASE_TAG"
+          fi
+
   required:
     name: Required checks
     if: always()
-    needs: [validation, container, publish]
+    needs: [validation, container, publish, release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       VALIDATION: ${{ needs.validation.result }}
       CONTAINER: ${{ needs.container.result }}
       PUBLISH: ${{ needs.publish.result }}
+      RELEASE: ${{ needs.release.result }}
       EXPECT_PUBLICATION: ${{ github.event_name == 'push' || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main') }}
+      EXPECT_RELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - name: Require successful validation and image build
         run: |
@@ -134,4 +158,7 @@ jobs:
           test "$CONTAINER" = success
           if [ "$EXPECT_PUBLICATION" = true ]; then
             test "$PUBLISH" = success
+          fi
+          if [ "$EXPECT_RELEASE" = true ]; then
+            test "$RELEASE" = success
           fi

@@ -36,8 +36,8 @@ The stdio server command inside the image is:
 /opt/agent-venv/bin/python /opt/agent/integrations/jev/server.py
 ```
 
-Use the MCP server's `jev_decide` and `jev_assess` tools from Codex, Claude Code,
-or Gemini. TypeSafe receives the supplied context and any explicitly selected
+Use the MCP server's `jev_decide` and `jev_assess` tools from Codex or Claude
+Code. TypeSafe receives the supplied context and any explicitly selected
 image. Supply only the relevant evidence. The integration does not upload
 screenshots automatically or persist prompts, screenshots, or decisions.
 

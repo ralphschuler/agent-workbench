@@ -5,12 +5,35 @@ The image runs XFCE, Xvfb, a shared D-Bus session, x11vnc, and noVNC as uid
 The desktop and agents share `DISPLAY=:99` and
 `DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/runtime-agent/bus`.
 
-On Linux, bind-mounted workspace files and the VNC secret must be accessible to
-UID 1000. The default setup assumes the host developer also has UID 1000. If your
-UID differs, arrange ownership or a narrowly scoped ACL for UID 1000 on
-`workspace/` and `.secrets/vnc_password` before starting. Do not make credential
-files world-readable. Named home volumes are initialized from the image with
-the correct ownership.
+On Linux, the bind-mounted workspace must be writable by UID 1000. The default
+setup assumes the host developer also has UID 1000. If your UID differs,
+arrange ownership or a narrowly scoped ACL for UID 1000 on `workspace/` before
+starting. For a fresh, empty workspace, an administrator can use this
+non-recursive ownership change:
+
+```sh
+docker compose run --rm --user 0 --cap-add CHOWN --entrypoint chown agent 1000:1000 /workspace
+```
+
+This changes only the workspace directory's owner. Review ownership separately
+for an existing workspace; initialization does not change its contents or
+permissions. New workspace directories use mode 0755 without granting other
+users write access. Named home volumes are initialized from the image with the
+correct ownership.
+
+`scripts/init.sh` creates `.secrets/` with mode 0700 and its VNC password file
+with mode 0444. The private directory prevents other host users from reading
+the password; the readable file lets the Docker-mounted secret work for UID
+1000 even when the host UID differs. Keep the directory private and do not move
+the file into a shared directory. Existing password files are preserved. If an
+older mode-0600 password prevents startup, check that both paths are regular
+entries rather than symlinks, then apply:
+
+```sh
+test -d .secrets && test ! -L .secrets && \
+  test -f .secrets/vnc_password && test ! -L .secrets/vnc_password && \
+  chmod 0700 .secrets && chmod 0444 .secrets/vnc_password
+```
 
 VNC requires a mounted password file containing exactly eight printable ASCII
 characters without spaces. A trailing newline is accepted. Classic VNC
