@@ -14,8 +14,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Dependabot builds share one slot. The merge controller rescans pending PRs
+  # because GitHub may replace older pending runs rather than keeping a FIFO.
+  group: ${{ startsWith(github.head_ref || github.ref_name, 'dependabot/') && 'ci-dependabot' || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'dependabot/') }}
 
 env:
   REGISTRY: ghcr.io

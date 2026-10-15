@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import signal
 import subprocess
 import tempfile
 import threading
@@ -18,6 +19,51 @@ import urllib.request
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+
+def running_group_members(group):
+    """Ignore zombies: they cannot keep writing a temporary browser profile."""
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            # comm may contain spaces or parentheses; fields after its final
+            # ')' begin with state, parent PID, process group and session.
+            fields = (entry / 'stat').read_text().rsplit(')', 1)[1].split()
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        if int(fields[2]) == group and fields[0] not in {'Z', 'X'}:
+            return True
+    return False
+
+
+def stop_process_group(process, timeout=5):
+    """Stop a group we started with start_new_session, then reap its leader."""
+    group = process.pid
+    if group <= 1 or group == os.getpgrp():
+        raise ValueError('Refusing to signal the smoke runner process group')
+    for termination_signal in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(group, termination_signal)
+        except ProcessLookupError:
+            break
+        deadline = time.monotonic() + timeout
+        while running_group_members(group):
+            process.poll()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.05, remaining))
+        else:
+            break
+    if running_group_members(group):
+        raise RuntimeError(f'Smoke process group {group} did not stop after TERM and KILL')
+    process.wait(timeout=timeout)
+
+
+def tool_failed(result):
+    # SDK 2 uses Python-style names; SDK 1 exposes the protocol's camelCase.
+    return result.is_error if hasattr(result, 'is_error') else result.isError
 
 
 def configured_server(name, extra_environment=None):
@@ -39,9 +85,9 @@ async def check_cua(pid: int, marker: Path):
             tools = {tool.name for tool in (await session.list_tools()).tools}
             assert {'list_windows', 'get_window_state', 'run_steps'} <= tools, tools
             windows = await session.call_tool('list_windows', {'pid': pid})
-            assert not windows.isError, 'CUA could not enumerate terminal windows'
+            assert not tool_failed(windows), 'CUA could not enumerate terminal windows'
             result = await session.call_tool('get_window_state', {'pid': pid, 'max_elements': 30, 'timeout_ms': 5000})
-            assert not result.isError, 'CUA could not observe the terminal'
+            assert not tool_failed(result), 'CUA could not observe the terminal'
             assert any(item.type == 'image' for item in result.content), 'CUA returned no screenshot'
             typed = await session.call_tool('run_steps', {
                 'pid': pid,
@@ -51,7 +97,7 @@ async def check_cua(pid: int, marker: Path):
                     {'tool': 'press_key', 'args': {'key': 'enter'}},
                 ],
             })
-            assert not typed.isError, 'CUA could not type into the terminal'
+            assert not tool_failed(typed), 'CUA could not type into the terminal'
             for _ in range(50):
                 if marker.exists() and marker.read_text() == 'agent-cua-ok':
                     break
@@ -76,7 +122,7 @@ async def check_playwright(url: str, directory: Path):
             async def invoke(name, arguments):
                 result = await session.call_tool(name, arguments)
                 text = '\n'.join(item.text for item in result.content if item.type == 'text')
-                assert not result.isError, f'{name} failed: {text[:2000]}'
+                assert not tool_failed(result), f'{name} failed: {text[:2000]}'
                 return text
 
             def reference(snapshot, role):
@@ -148,8 +194,12 @@ def main():
                 f'--user-data-dir={temporary}/profile', '--remote-debugging-port=9222',
                 '--remote-debugging-address=127.0.0.1', page.as_uri(),
             ], stdout=chrome_log, stderr=chrome_log, start_new_session=True)
-            terminal = subprocess.Popen(['xterm', '-title', 'Agent smoke terminal', '-e', 'bash', '--noprofile', '--norc'])
+            terminal = None
             try:
+                terminal = subprocess.Popen(
+                    ['xterm', '-title', 'Agent smoke terminal', '-e', 'bash', '--noprofile', '--norc'],
+                    start_new_session=True,
+                )
                 for _ in range(60):
                     if chrome.poll() is not None:
                         chrome_log.seek(0)
@@ -167,14 +217,11 @@ def main():
                 print('Chrome: local page rendered in the desktop')
                 asyncio.run(asyncio.wait_for(check_cua(terminal.pid, Path(temporary) / 'cua-result'), timeout=40))
             finally:
-                terminal.terminate()
-                chrome.terminate()
-                for process in (terminal, chrome):
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait(timeout=5)
+                try:
+                    if terminal is not None:
+                        stop_process_group(terminal)
+                finally:
+                    stop_process_group(chrome)
 
 
 if __name__ == '__main__':
