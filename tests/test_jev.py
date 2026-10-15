@@ -123,9 +123,19 @@ class JevTests(unittest.IsolatedAsyncioTestCase):
                 await client.initialize()
                 tools = await client.list_tools()
                 self.assertEqual({tool.name for tool in tools.tools}, {"jev_decide", "jev_assess"})
+                for tool in tools.tools:
+                    schema = tool.model_dump(by_alias=True)["inputSchema"]
+                    self.assertNotIn("ctx", schema["properties"])
                 result = await client.call_tool("jev_decide", {"context": "A shell command is needed", "question": "Which tool?", "candidates": {"terminal": "Run a command"}})
-                self.assertFalse(result.isError)
-                self.assertEqual(result.structuredContent["status"], "unconfigured")
+                # Wire aliases remain stable across SDK 1's camelCase and SDK
+                # 2's snake_case Python fields.
+                payload = result.model_dump(by_alias=True)
+                self.assertFalse(payload["isError"])
+                self.assertEqual(payload["structuredContent"]["status"], "unconfigured")
+                result = await client.call_tool("jev_assess", {"context": "Observed state", "questions": {"ready": "Is it ready?"}})
+                payload = result.model_dump(by_alias=True)
+                self.assertFalse(payload["isError"])
+                self.assertEqual(payload["structuredContent"], {"status": "unconfigured", "abstain": True, "answers": {}})
 
 
 class JevImageTests(unittest.TestCase):

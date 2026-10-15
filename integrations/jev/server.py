@@ -15,7 +15,14 @@ import os
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+try:
+    from mcp.server.mcpserver import Context, MCPServer
+except ModuleNotFoundError as error:
+    if error.name != "mcp.server.mcpserver":
+        raise
+    # SDK 2 renamed FastMCP; retain compatibility while the locked SDK 1
+    # dependency and its major-version update are validated independently.
+    from mcp.server.fastmcp import Context, FastMCP as MCPServer
 from typesafe_sdk import AsyncTypeSafeClient, Choice, Image, Noul, RetryPolicy, TypeSafeError
 
 
@@ -196,7 +203,7 @@ class JevRuntime:
 
 
 @asynccontextmanager
-async def lifespan(_server: FastMCP):
+async def lifespan(_server: MCPServer):
     runtime = JevRuntime()
     try:
         yield runtime
@@ -204,7 +211,7 @@ async def lifespan(_server: FastMCP):
         await runtime.close()
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     "jev",
     instructions="Use Jev for bounded typed decisions and batched yes/no questions about supplied evidence. Preserve abstention. Jev does not generate explanations, verify external facts, or authorize actions.",
     lifespan=lifespan,
