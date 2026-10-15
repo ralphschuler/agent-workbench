@@ -22,7 +22,7 @@ test "${TARGETARCH:-amd64}" = amd64
 apt-get update
 apt-get install --no-install-recommends -y \
     at-spi2-core ca-certificates curl dbus-x11 fonts-dejavu-core \
-    fonts-liberation git gnupg libgail-common libxi6 libxkbcommon0 \
+    fonts-liberation git gnupg libatomic1 libgail-common libxi6 libxkbcommon0 \
     novnc procps python3 python3-venv scrot supervisor tini \
     websockify x11-utils x11vnc xauth xdg-utils xdotool \
     xfce4-appfinder xfce4-panel xfce4-session xfce4-settings \
