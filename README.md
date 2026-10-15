@@ -1,7 +1,7 @@
 # Agent Workbench
 
 [![CI](https://github.com/ralphschuler/agent-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/ralphschuler/agent-workbench/actions/workflows/ci.yml)
-![Ubuntu 24.04](https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
+![Ubuntu 26.04 LTS](https://img.shields.io/badge/Ubuntu-26.04_LTS-E95420?logo=ubuntu&logoColor=white)
 ![Linux amd64](https://img.shields.io/badge/Plattform-linux%2Famd64-2496ED?logo=docker&logoColor=white)
 
 Ein persistenter Ubuntu-Desktop für **Codex und Claude Code** – mit Chrome,
@@ -13,7 +13,7 @@ Gedächtnis.
 
 | Bereich | Ausstattung |
 | --- | --- |
-| Desktop | Ubuntu 24.04, XFCE, Chrome, Terminal und noVNC |
+| Desktop | Ubuntu 26.04 LTS, XFCE, Chrome, Terminal und noVNC |
 | Coding | Codex und Claude Code |
 | GitHub | `gh`-CLI und offizieller GitHub-MCP-Server, einschließlich Actions-Werkzeugen |
 | Computer Use | Cua Driver mit Fensterbeobachtung, Screenshots und Eingaben |

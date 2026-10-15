@@ -58,8 +58,9 @@ cannot activate them:
 
 Required reviews remain respected. The dependency workflow does not approve PRs
 or bypass branch protection. After any required human review or other external
-check completes, rerun `CI` to retry a previously blocked merge. Repository
-auto-merge does not need to be enabled: the workflow performs a normal squash
+check completes, the next controller tick can retry the merge. Dispatch
+**Merge Dependabot updates** manually to request an earlier tick. Repository
+auto-merge does not need to be enabled: the controller performs a normal squash
 merge only after the successful CI run.
 
 ## Dependabot merge policy
@@ -67,17 +68,77 @@ merge only after the successful CI run.
 Weekly minor and patch updates are grouped separately for each ecosystem. Major
 updates remain available as individual PRs for manual review.
 
-The merge workflow runs from the default branch after `CI` succeeds. It never
-checks out pull request code or consumes CI artifacts with its write token. It
-re-fetches the run and PR, verifies the repository, target branch, author, and
-tested head SHA, and requires **every** commit to have a verified Dependabot
-signature and explicit minor/patch update metadata. Unknown metadata, digest-only
-updates without that metadata, and maintainer changes remain for manual review.
-The merge API checks the SHA atomically and enforces GitHub branch rules.
-After a successful merge it dispatches `CI` on `main` to validate and publish the
-updated image. This explicit dispatch is necessary because merges performed
-with `GITHUB_TOKEN` do not trigger another push workflow. Only the merge job has
-Actions write permission; it uses no additional credential.
+The controller runs from the default branch after every completed `CI` run,
+including failed runs and main publication, on manual dispatch, and every five
+minutes as recovery. Scheduled execution can be delayed by GitHub. It never
+checks out pull request code or consumes CI artifacts with its write token.
+A repository-wide concurrency group with cancellation disabled serializes
+controller ticks.
+
+Each tick lists **all** open PRs and considers eligible Dependabot updates in
+ascending PR-number order. It first requires successful CI for the current
+immutable `main` SHA, including validation, backup/restore, container smoke,
+**Publish GHCR image**, and **Required checks**. Missing or cancelled main CI is
+dispatched again; queued, running, or failed main CI pauses the PR queue. This
+also recovers a lost post-merge dispatch after the last PR has closed.
+
+The oldest eligible candidate keeps its place while its current-head CI is
+queued or running. A missing or cancelled run gets one explicit branch CI
+dispatch, then the tick returns. Definitively failed unchanged PR CI remains
+for a maintainer; the controller may consider a later candidate. A confirmed
+merge conflict is also skipped without a branch update, so it cannot block
+independent PRs indefinitely. For automatic integration, unknown mergeability,
+unknown results, and incomplete required checks hold the candidate rather than
+silently advancing the queue. No unchanged failed build is automatically rerun.
+
+Before merging, the candidate must contain current `main` as an ancestor and
+have successful CI for its exact current head, from the repository's `ci.yml`.
+An out-of-date branch is updated with GitHub's `updateBranch` API and
+`expected_head_sha`. The update can complete asynchronously: CI is dispatched
+only once the new verified head is visible; a later tick recovers delayed
+completion. Each tick performs at most one PR update or merge and returns after
+its associated CI dispatch. It does not update another branch while waiting.
+
+Every ordinary dependency commit needs a GitHub-verified Dependabot author and
+one parent. Complete explicit minor/patch metadata additionally permits
+automatic branch updates and merges. A genuine, fully verified Bot history with
+major, missing, unknown, or digest-only metadata gets **CI recovery only**:
+missing/cancelled current-head CI is dispatched, and active CI holds its queue
+position. After that CI completes, integration stays manual and the controller
+can consider the next PR. Such branches are never automatically updated or
+merged, even if CI passes or their base is stale. Human, unsigned, foreign, and
+otherwise unverified histories remain excluded from recovery. GitHub may use
+`web-flow` as the committer when signing a genuine Dependabot commit; the
+verified Dependabot author is the identity required by this policy.
+
+There is one narrow history exception for API base updates: a GitHub-verified
+`github-actions[bot]` author, an Actions or `web-flow` committer, exactly two
+parents, a first parent continuing the verified PR chain, and a second parent
+that is an ancestor of current `main`. Other merge commits are rejected. These
+checks trust repository-owned Actions signing identity and constrain ancestry;
+they do **not** independently reproduce the merge tree. The controller already
+has repository write permissions, so its default-branch code and other
+repository-owned Actions remain part of that trust boundary.
+
+Immediately before a PR mutation, both its head and `main` are fetched again.
+The update/merge API atomically checks the expected head SHA. GitHub's merge API
+does not accept an expected base SHA: an external manual merge can still race
+the final base read. The strict up-to-date branch protection described above is
+required to close that gap; no force operation or protection bypass is used.
+
+After a successful merge the controller dispatches `CI` on `main` to validate
+and publish the updated image, then returns. It waits for that publication
+before advancing another PR. Explicit branch and main dispatches are necessary
+because `GITHUB_TOKEN` updates do not trigger ordinary push workflows. The
+controller uses the repository token; it needs no additional user credential.
+
+All Dependabot branch CI runs, whether opened as PRs or explicitly dispatched,
+share a separate global concurrency group with cancellation disabled. GitHub
+concurrency is **not a durable FIFO queue**: a newer pending run can replace an
+older pending run even when running jobs are not cancelled. Full scans and the
+scheduled recovery therefore remain necessary. Stable candidate ordering and
+returning while its run is pending avoid dispatching later candidates in
+parallel. Normal PRs keep their existing cancellation behavior.
 
 Changing a dependency also has to pass the complete container build. Python
 requirements must retain valid hashes; regenerate the project's requirements
