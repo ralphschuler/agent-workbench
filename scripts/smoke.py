@@ -20,6 +20,11 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
+def tool_failed(result):
+    # SDK 2 uses Python-style names; SDK 1 exposes the protocol's camelCase.
+    return result.is_error if hasattr(result, 'is_error') else result.isError
+
+
 def configured_server(name, extra_environment=None):
     # Match Codex's restricted inherited environment; using the entire process
     # environment here would conceal missing DISPLAY / session-bus config.
@@ -39,9 +44,9 @@ async def check_cua(pid: int, marker: Path):
             tools = {tool.name for tool in (await session.list_tools()).tools}
             assert {'list_windows', 'get_window_state', 'run_steps'} <= tools, tools
             windows = await session.call_tool('list_windows', {'pid': pid})
-            assert not windows.isError, 'CUA could not enumerate terminal windows'
+            assert not tool_failed(windows), 'CUA could not enumerate terminal windows'
             result = await session.call_tool('get_window_state', {'pid': pid, 'max_elements': 30, 'timeout_ms': 5000})
-            assert not result.isError, 'CUA could not observe the terminal'
+            assert not tool_failed(result), 'CUA could not observe the terminal'
             assert any(item.type == 'image' for item in result.content), 'CUA returned no screenshot'
             typed = await session.call_tool('run_steps', {
                 'pid': pid,
@@ -51,7 +56,7 @@ async def check_cua(pid: int, marker: Path):
                     {'tool': 'press_key', 'args': {'key': 'enter'}},
                 ],
             })
-            assert not typed.isError, 'CUA could not type into the terminal'
+            assert not tool_failed(typed), 'CUA could not type into the terminal'
             for _ in range(50):
                 if marker.exists() and marker.read_text() == 'agent-cua-ok':
                     break
@@ -76,7 +81,7 @@ async def check_playwright(url: str, directory: Path):
             async def invoke(name, arguments):
                 result = await session.call_tool(name, arguments)
                 text = '\n'.join(item.text for item in result.content if item.type == 'text')
-                assert not result.isError, f'{name} failed: {text[:2000]}'
+                assert not tool_failed(result), f'{name} failed: {text[:2000]}'
                 return text
 
             def reference(snapshot, role):

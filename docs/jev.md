@@ -10,7 +10,7 @@ The official integration uses `typesafe-sdk==0.7.5` and its default
 `jev-latest` model. The separate PyPI package named `jev` requires Python 3.14
 and discards probabilities in its high-level decorators. Using the official
 SDK directly preserves the uncertainty needed for routing decisions and works
-with the image's Python 3.12.
+with the image's Python 3.14.
 
 ## Configuration
 
