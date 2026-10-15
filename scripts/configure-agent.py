@@ -187,6 +187,32 @@ def link_skills(home, root, warnings):
             target.symlink_to(skill, target_is_directory=True)
 
 
+def initialize_instructions(home, codex_home, root, warnings):
+    """Seed editable runtime instructions and connect each CLI's global path."""
+    shared = home / "AGENTS.md"
+    if not shared.exists() and not shared.is_symlink():
+        template = (root / "docker" / "home-AGENTS.md").read_text()
+        shared.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            descriptor = os.open(shared, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            # Another process/user supplied instructions while we read the seed.
+            pass
+        else:
+            with os.fdopen(descriptor, "w") as stream:
+                stream.write(template)
+    if not shared.is_file():
+        warnings.append(f"Preserved existing runtime instructions path; expected a readable file: {shared}")
+    for target in (codex_home / "AGENTS.md", home / ".claude" / "CLAUDE.md"):
+        if target.is_symlink() and target.resolve() == shared.resolve():
+            continue
+        if target.exists() or target.is_symlink():
+            warnings.append(f"Preserved existing native instructions: {target}")
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        target.symlink_to(shared)
+
+
 def configure(home=None, env=None, root=ROOT):
     env = os.environ if env is None else env
     home = Path(home) if home is not None else Path(env.get("HOME", str(Path.home())))
@@ -249,6 +275,7 @@ def configure(home=None, env=None, root=ROOT):
         for event, action in (("UserPromptSubmit", "recall"), ("Stop", "retain")):
             settings[name].sync_hook(event, hook_command + " " + action, hooks)
     settings["codex"].sync(("features", "hooks"), True if hooks else MISSING)
+    initialize_instructions(home, codex_home, root, warnings)
     for config in settings.values():
         config.save()
     link_skills(home, root, warnings)

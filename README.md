@@ -50,6 +50,17 @@ Chrome läuft mit aktivierter Sandbox, der Container als Benutzer `agent`
 (UID 1000). Host-Rechte und Workspace-Eigentümer erklärt die
 [Desktop-Anleitung](docs/docker.md).
 
+## Anweisungen für Agent-Sessions
+
+Eigene globale Anweisungen stehen im Container in **`/home/agent/AGENTS.md`**.
+Codex lädt sie über `~/.codex/AGENTS.md`, Claude über `~/.claude/CLAUDE.md`.
+Änderungen bleiben im Home-Volume erhalten und gelten für neue Sessions.
+Vorhandene eigene CLI-Anweisungsdateien werden nicht überschrieben.
+
+Die [Vorlage](docker/home-AGENTS.md) wird nur bei der ersten Einrichtung
+übernommen. Die `AGENTS.md` im Repository beschreibt separat die Regeln für
+Agenten, die an diesem Repository arbeiten.
+
 ## Integrationen aktivieren
 
 ### GitHub

@@ -27,6 +27,9 @@ class AgentConfigurationTests(unittest.TestCase):
         skill = self.root / "skills" / "desktop"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("# Desktop\n")
+        template = Path(__file__).resolve().parents[1] / "docker" / "home-AGENTS.md"
+        (self.root / "docker").mkdir()
+        (self.root / "docker/home-AGENTS.md").write_text(template.read_text())
         self.env = {"HOME": str(self.home)}
 
     def configure(self, **env):
@@ -69,6 +72,41 @@ class AgentConfigurationTests(unittest.TestCase):
         before = self.snapshot()
         self.assertEqual(self.configure(HINDSIGHT_ENABLED="1", HINDSIGHT_HOOKS_ENABLED="1"), [])
         self.assertEqual(self.snapshot(), before)
+
+    def test_creates_private_editable_runtime_instructions_and_native_global_links(self):
+        self.configure()
+        shared = self.home / "AGENTS.md"
+        self.assertEqual(shared.read_text(), (self.root / "docker/home-AGENTS.md").read_text())
+        self.assertEqual(stat.S_IMODE(shared.stat().st_mode), 0o600)
+        self.assertFalse(shared.is_symlink())
+        for native in (self.home / ".codex/AGENTS.md", self.home / ".claude/CLAUDE.md"):
+            self.assertTrue(native.is_symlink())
+            self.assertEqual(native.resolve(), shared)
+
+    def test_preserves_user_edits_to_shared_runtime_instructions_on_restart(self):
+        self.configure()
+        shared = self.home / "AGENTS.md"
+        shared.write_text("# My persistent runtime instructions\n")
+        before = shared.read_bytes(), shared.stat().st_mtime_ns
+        (self.root / "docker/home-AGENTS.md").write_text("# Changed image default\n")
+        self.assertEqual(self.configure(), [])
+        self.assertEqual((shared.read_bytes(), shared.stat().st_mtime_ns), before)
+        self.assertEqual((self.home / ".codex/AGENTS.md").read_text(), shared.read_text())
+        self.assertEqual((self.home / ".claude/CLAUDE.md").read_text(), shared.read_text())
+
+    def test_preserves_conflicting_native_instruction_file_and_symlink(self):
+        codex = self.write(".codex/AGENTS.md", "# My Codex instructions\n")
+        other = self.write("other-instructions.md", "# My Claude instructions\n")
+        claude = self.home / ".claude/CLAUDE.md"
+        claude.parent.mkdir()
+        claude.symlink_to(other)
+        warnings = self.configure()
+        self.assertEqual(codex.read_text(), "# My Codex instructions\n")
+        self.assertFalse(codex.is_symlink())
+        self.assertTrue(claude.is_symlink())
+        self.assertEqual(claude.resolve(), other)
+        self.assertEqual(len([warning for warning in warnings
+                              if "Preserved existing native instructions" in warning]), 2)
 
     def test_github_wrapper_uses_runtime_auth_without_persisting_tokens(self):
         token = "github-runtime-token-not-for-settings"
@@ -192,7 +230,10 @@ class AgentConfigurationTests(unittest.TestCase):
         self.configure(CODEX_HOME=str(custom), HINDSIGHT_HOOKS_ENABLED="1")
         self.assertTrue((custom / "config.toml").is_file())
         self.assertTrue((custom / "hooks.json").is_file())
+        self.assertTrue((custom / "AGENTS.md").is_symlink())
+        self.assertEqual((custom / "AGENTS.md").resolve(), self.home / "AGENTS.md")
         self.assertFalse((self.home / ".codex/config.toml").exists())
+        self.assertFalse((self.home / ".codex/AGENTS.md").exists())
 
 
 if __name__ == "__main__":
