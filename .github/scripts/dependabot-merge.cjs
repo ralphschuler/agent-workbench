@@ -104,36 +104,56 @@ async function mergeDependabot({ github, context, core }) {
     if (!commits.length || commits.at(-1).sha !== pr.head.sha) return false;
     let previous;
     let updates = 0;
+    let autoSafe = true;
     for (const commit of commits) {
       if (!commit.commit.verification?.verified || !Array.isArray(commit.parents)) return false;
       const parents = commit.parents.map((parent) => parent.sha);
       if (previous && parents[0] !== previous) return false;
       if (!previous && (!parents[0] || !await ancestor(parents[0], main))) return false;
-      if (commit.author?.login === BOT
-          && parents.length === 1 && hasOnlySafeUpdates(commit.commit.message)) {
+      if (commit.author?.login === BOT && parents.length === 1) {
         updates += 1;
+        // Provenance admits CI recovery; only explicit minor/patch metadata
+        // admits branch updates or merges. Major/digest/unknown stays manual.
+        autoSafe = autoSafe && typeof commit.commit.message === 'string'
+          && hasOnlySafeUpdates(commit.commit.message);
       } else if (commit.author?.login === ACTIONS_BOT
           && [ACTIONS_BOT, 'web-flow'].includes(commit.committer?.login)
           && parents.length === 2 && previous && parents[0] !== parents[1]
           && await ancestor(parents[1], main)) {
-        // Only verified base syncs are exempt from dependency metadata:
-        // parent one continues this PR; parent two is an ancestor of main.
+        // Parent one continues this PR; parent two is an ancestor of main.
+        // A base sync cannot turn a manual-only update into an auto-safe one.
       } else return false;
       previous = commit.sha;
     }
-    return updates > 0;
+    return updates > 0 ? { autoSafe } : false;
   }
 
-  async function unchanged(pr) {
+  async function unchanged(pr, requireMergeable = true) {
     const { data: fresh } = await github.rest.pulls.get({ ...repo, pull_number: pr.number });
     return eligiblePullRequest(fresh, repository) && fresh.head.sha === pr.head.sha
-      && fresh.mergeable === true && await mainSha() === main;
+      && (!requireMergeable || fresh.mergeable === true) && await mainSha() === main;
   }
 
   for (const candidate of candidates) {
     const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: candidate.number });
-    if (!eligiblePullRequest(pr, repository) || !await verifiedCommits(pr)) {
-      info(`PR #${candidate.number} requires manual review: source, signatures, history, or metadata.`);
+    const history = eligiblePullRequest(pr, repository) && await verifiedCommits(pr);
+    if (!history) {
+      info(`PR #${candidate.number} requires manual review: source, signatures, or history.`);
+      continue;
+    }
+    if (!history.autoSafe) {
+      const run = await runsFor(pr.head.ref, pr.head.sha);
+      if (run && run.status !== 'completed') {
+        info(`Manual-only PR #${pr.number} CI is queued/running; keep the queue on this candidate.`);
+        return;
+      }
+      if (!run || run.conclusion === 'cancelled') {
+        if (!await unchanged(pr, false)) { info('PR head or main changed; wait for the next tick.'); return; }
+        await dispatch(pr.head.ref);
+        info(`Requested missing/cancelled CI for verified manual-only PR #${pr.number}; no branch update or merge.`);
+        return;
+      }
+      info(`PR #${pr.number} has completed head CI; metadata requires manual integration.`);
       continue;
     }
     if (pr.mergeable === false) {

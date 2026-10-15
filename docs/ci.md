@@ -87,9 +87,9 @@ queued or running. A missing or cancelled run gets one explicit branch CI
 dispatch, then the tick returns. Definitively failed unchanged PR CI remains
 for a maintainer; the controller may consider a later candidate. A confirmed
 merge conflict is also skipped without a branch update, so it cannot block
-independent PRs indefinitely. Unknown mergeability, unknown results, and
-incomplete required checks hold the candidate rather than silently advancing
-the queue. No unchanged failed build is automatically rerun.
+independent PRs indefinitely. For automatic integration, unknown mergeability,
+unknown results, and incomplete required checks hold the candidate rather than
+silently advancing the queue. No unchanged failed build is automatically rerun.
 
 Before merging, the candidate must contain current `main` as an ancestor and
 have successful CI for its exact current head, from the repository's `ci.yml`.
@@ -99,12 +99,17 @@ only once the new verified head is visible; a later tick recovers delayed
 completion. Each tick performs at most one PR update or merge and returns after
 its associated CI dispatch. It does not update another branch while waiting.
 
-Ordinary dependency commits still require a GitHub-verified Dependabot author,
-one parent, and complete explicit minor/patch metadata. Major updates, unknown
-metadata, digest-only updates without that metadata, and maintainer changes
-stay for manual review. GitHub may use `web-flow` as the committer when signing
-a genuine Dependabot commit; the verified Dependabot author is the identity
-required by this policy.
+Every ordinary dependency commit needs a GitHub-verified Dependabot author and
+one parent. Complete explicit minor/patch metadata additionally permits
+automatic branch updates and merges. A genuine, fully verified Bot history with
+major, missing, unknown, or digest-only metadata gets **CI recovery only**:
+missing/cancelled current-head CI is dispatched, and active CI holds its queue
+position. After that CI completes, integration stays manual and the controller
+can consider the next PR. Such branches are never automatically updated or
+merged, even if CI passes or their base is stale. Human, unsigned, foreign, and
+otherwise unverified histories remain excluded from recovery. GitHub may use
+`web-flow` as the committer when signing a genuine Dependabot commit; the
+verified Dependabot author is the identity required by this policy.
 
 There is one narrow history exception for API base updates: a GitHub-verified
 `github-actions[bot]` author, an Actions or `web-flow` committer, exactly two

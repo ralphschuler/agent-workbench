@@ -161,6 +161,60 @@ test('missing and cancelled candidate CI dispatch only that branch, never a late
   }
 });
 
+const manualMessages = [metadata('version-update:semver-major'), metadata('unknown'),
+  'Bump image from sha256:old to sha256:new', safe.replace('...\n', '')];
+
+test('verified major, unknown, digest and missing-metadata updates recover only their head CI', async () => {
+  for (const message of manualMessages) {
+    for (const existing of [[], [run(200, pr().head.ref, head, { conclusion: 'cancelled' })]]) {
+      const c = commit(); c.commit.message = message;
+      const p = pr(); p.mergeable = null;
+      const a = api({ prs: [p, pr(8, 'e'.repeat(40))], commits: { 7: [c], 8: [commit('e'.repeat(40))] },
+        runs: [run(100, 'main', main), ...existing],
+        comparisons: { [`${main}...${head}`]: { status: 'diverged', behind_by: 1, merge_base_commit: { sha: old } } } });
+      await controller(a);
+      assert.equal(a.operations.length, 0); assert.deepEqual(a.dispatches.map((d) => d.ref), [p.head.ref]); assert.equal(a.gets[8], undefined);
+    }
+  }
+});
+
+test('manual-only active CI holds the queue, and completed CI permits a later auto-safe candidate', async () => {
+  for (const message of manualMessages) {
+    const c = commit(); c.commit.message = message;
+    const p8 = pr(8, 'e'.repeat(40));
+    const opts = { prs: [pr(), p8], commits: { 7: [c], 8: [commit(p8.head.sha)] } };
+    for (const status of ['queued', 'in_progress']) {
+      const a = api({ ...opts, runs: [run(100, 'main', main), run(200, pr().head.ref, head, { status, conclusion: null }), run(201, p8.head.ref, p8.head.sha)] });
+      await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0); assert.equal(a.gets[8], undefined);
+    }
+    for (const conclusion of ['success', 'failure', 'neutral']) {
+      const a = api({ ...opts, runs: [run(100, 'main', main), run(200, pr().head.ref, head, { conclusion }), run(201, p8.head.ref, p8.head.sha)] });
+      await controller(a); assert.equal(a.operations.length, 1); assert.equal(a.operations[0].pull_number, 8); assert.equal(a.operations[0].type, 'merge');
+    }
+  }
+});
+
+test('manual metadata never relaxes source, signed-history, or SHA requirements for CI recovery', async () => {
+  const variants = [(c) => { c.commit.verification.verified = false; }, (c) => { c.author.login = 'someone'; },
+    (c) => { c.parents.push({ sha: old }); }, (c) => { c.sha = synced; }];
+  for (const mutate of variants) {
+    const c = commit(); c.commit.message = metadata('version-update:semver-major'); mutate(c);
+    const a = api({ commits: { 7: [c] }, runs: [run(100, 'main', main)] });
+    await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
+  }
+  const c = commit(); c.commit.message = manualMessages[2];
+  const a = api({ commits: { 7: [c] }, runs: [run(100, 'main', main)], prRead: (p, count) => { if (count > 1) p.head.sha = synced; return p; } });
+  await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
+});
+
+test('a verified base-sync preserves manual-only status instead of authorizing merge or branch update', async () => {
+  const c = commit(head, old); c.commit.message = manualMessages[0];
+  const a = api({ prs: [pr(7, synced)], commits: { 7: [c, syncCommit()] },
+    runs: [run(100, 'main', main), run(200, pr().head.ref, synced)],
+    comparisons: { [`${main}...${synced}`]: { status: 'diverged', behind_by: 1, merge_base_commit: { sha: old } } } });
+  await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
+});
+
 test('definitively failed unchanged CI is not retried and does not block later eligible PRs', async () => {
   const p8 = pr(8, 'e'.repeat(40));
   const a = api({ prs: [pr(), p8], runs: [run(100, 'main', main), run(200, pr().head.ref, head, { conclusion: 'failure' }), run(201, p8.head.ref, p8.head.sha)] });
