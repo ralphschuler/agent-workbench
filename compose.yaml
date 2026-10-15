@@ -1,8 +1,8 @@
-name: agent-desktop
+name: agent-workbench
 
 services:
   agent:
-    image: ${AGENT_IMAGE:-ghcr.io/ralphschuler/agent:latest}
+    image: ${AGENT_IMAGE:-ghcr.io/ralphschuler/agent-workbench:latest}
     build:
       context: .
       platforms: [linux/amd64]
@@ -24,6 +24,10 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GH_TOKEN: ${GH_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      GITHUB_TOOLSETS: ${GITHUB_TOOLSETS:-context,repos,issues,pull_requests,users,actions}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       TYPESAFE_DEFAULT_MODEL: ${TYPESAFE_DEFAULT_MODEL:-jev-latest}
       JEV_TIMEOUT_SECONDS: ${JEV_TIMEOUT_SECONDS:-8}

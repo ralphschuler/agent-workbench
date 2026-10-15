@@ -70,6 +70,32 @@ class AgentConfigurationTests(unittest.TestCase):
         self.assertEqual(self.configure(HINDSIGHT_ENABLED="1", HINDSIGHT_HOOKS_ENABLED="1"), [])
         self.assertEqual(self.snapshot(), before)
 
+    def test_github_wrapper_uses_runtime_auth_without_persisting_tokens(self):
+        token = "github-runtime-token-not-for-settings"
+        self.configure(GH_TOKEN=token, GITHUB_TOKEN=token, GITHUB_PERSONAL_ACCESS_TOKEN=token)
+        expected = {
+            "command": "/opt/agent-venv/bin/python",
+            "args": [str(self.root / "scripts/github-mcp.py")],
+        }
+        self.assertEqual(self.read(".claude.json")["mcpServers"]["github"], expected)
+        expected["env_vars"] = [
+            "GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN", "HOME", "GH_CONFIG_DIR",
+            "GITHUB_TOOLSETS",
+        ]
+        self.assertEqual(self.read(".codex/config.toml")["mcp_servers"]["github"], expected)
+        for path in self.home.rglob("*"):
+            if path.is_file():
+                self.assertNotIn(token, path.read_text(), str(path))
+        self.assertTrue((self.home / ".config/agent-workbench/config-state.json").is_file())
+        self.assertFalse((self.home / ".config/agent-desktop").exists())
+
+    def test_existing_custom_github_server_is_preserved(self):
+        custom = {"command": "my-github-wrapper", "args": ["--custom"]}
+        self.write(".claude.json", {"mcpServers": {"github": custom}})
+        warnings = self.configure()
+        self.assertTrue(any("mcpServers/github" in warning for warning in warnings))
+        self.assertEqual(self.read(".claude.json")["mcpServers"]["github"], custom)
+
     def test_preserves_custom_settings_comments_and_permissions(self):
         path = self.write(".codex/config.toml", '# Keep me\nmodel = "chosen"\n[features]\ncustom = true\n')
         path.chmod(0o640)

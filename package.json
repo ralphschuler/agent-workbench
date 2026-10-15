@@ -1,8 +1,8 @@
 {
-  "name": "agent-desktop-tools",
+  "name": "agent-workbench-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "Pinned agent CLIs for the Ubuntu agent desktop image",
+  "description": "Pinned coding CLIs for Agent Workbench",
   "engines": {"node": ">=24 <25"},
   "allowScripts": {
     "@anthropic-ai/claude-code": true

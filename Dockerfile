@@ -4,9 +4,6 @@ FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bd
 FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS desktop-base
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
-LABEL org.opencontainers.image.title="Agent Desktop" \
-      org.opencontainers.image.description="Ubuntu desktop with coding agents, CUA and optional memory" \
-      org.opencontainers.image.source="https://github.com/ralphschuler/.agent"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Put small inputs before the large install layer. This also keeps VFS-based
@@ -68,9 +65,55 @@ ln -sf vnc.html /usr/share/novnc/index.html
 DEPENDENCIES
 INSTALL
 
-FROM desktop-base AS runtime
+# Keep GitHub tooling separate so updates do not reinstall the desktop or CLIs.
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS github-tools
+ARG TARGETARCH
+ARG DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+COPY --chmod=0755 docker/with-build-ca.sh /usr/local/bin/with-build-ca
+COPY --chmod=0755 docker/install-github-mcp.sh /usr/local/bin/install-github-mcp
+RUN --mount=type=secret,id=build_ca,mode=0444 <<'INSTALL_GITHUB'
+set -eu
+with-build-ca bash -e -o pipefail <<'GITHUB_TOOLS'
+test "${TARGETARCH:-amd64}" = amd64
+apt-get update
+apt-get install --no-install-recommends -y ca-certificates curl gnupg tar
+
+# Official GitHub CLI keyring checksum and active signing-key fingerprint:
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+curl --fail --silent --show-error --location \
+    --connect-timeout 15 --max-time 120 --retry 2 \
+    https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    --output /usr/share/keyrings/githubcli-archive-keyring.gpg
+echo '6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /usr/share/keyrings/githubcli-archive-keyring.gpg' \
+    | sha256sum --check -
+gpg --batch --show-keys --with-colons /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    | awk -F: '$1 == "fpr" {print $10}' \
+    | grep -Fx '7F38BBB59D064DBCB3D84D725612B36462313325'
+echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main' \
+    > /etc/apt/sources.list.d/github-cli.list
+apt-get update
+apt-get install --no-install-recommends -y gh
+install-github-mcp
+gh --version
+github-mcp-server --version
+install -D -m 755 /usr/bin/gh /output/usr/local/bin/gh
+install -D -m 755 /usr/local/bin/github-mcp-server /output/usr/local/bin/github-mcp-server
+install -D -m 644 /usr/local/share/licenses/github-mcp-server/LICENSE \
+    /output/usr/local/share/licenses/github-mcp-server/LICENSE
+rm -rf /var/lib/apt/lists/*
+GITHUB_TOOLS
+INSTALL_GITHUB
+
+FROM scratch AS runtime-assets
 # Context is an allowlist; credentials and workspaces cannot enter this COPY.
 COPY . /opt/agent/
+COPY --from=github-tools /output/ /
+
+FROM desktop-base AS runtime
+# Merge runtime assets once to avoid full-desktop snapshots for each small COPY
+# when a development Docker daemon uses the VFS storage driver.
+COPY --from=runtime-assets / /
 # The Cua Python launcher chmods its binary on every invocation. Use the pinned
 # native executable directly so the runtime user can keep installed tools read-only.
 RUN chmod a+rx /opt/agent-tools \
@@ -84,6 +127,8 @@ RUN chmod a+rx /opt/agent-tools \
        >> /etc/X11/app-defaults/XTerm \
     && install -m 644 /opt/agent/docker/agent-browser.desktop \
        /usr/share/applications/agent-browser.desktop \
+    && install -D -m 644 /opt/agent/docker/LICENSE.github-cli \
+       /usr/local/share/licenses/github-cli/LICENSE \
     && sed -i 's|^Exec=/usr/bin/google-chrome-stable|Exec=agent-browser|' \
        /usr/share/applications/google-chrome.desktop \
     && install -m 644 /opt/agent/docker/supervisord.conf /etc/supervisord.conf
@@ -115,3 +160,7 @@ HEALTHCHECK --interval=15s --timeout=10s --start-period=60s --retries=4 \
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/agent/docker/entrypoint.sh"]
 CMD ["desktop"]
+
+LABEL org.opencontainers.image.title="Agent Workbench" \
+      org.opencontainers.image.description="Ubuntu desktop with coding agents, GitHub tools, CUA and optional memory" \
+      org.opencontainers.image.source="https://github.com/ralphschuler/agent-workbench"

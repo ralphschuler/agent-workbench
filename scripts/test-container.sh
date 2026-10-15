@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Isolated end-to-end check; stops and removes only the container it creates.
 set -euo pipefail
-image="${1:-agent-desktop:dev}"
+image="${1:-agent-workbench:dev}"
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 secret_dir="$(mktemp -d)"
 container_id=""

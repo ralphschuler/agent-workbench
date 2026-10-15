@@ -1,141 +1,133 @@
-# Agent Desktop
+# Agent Workbench
 
-Ubuntu-24.04-Desktop für Coding- und Computer-Use-Agenten: Chrome, XFCE und
-Terminal, Codex, Claude Code, Cua Driver, Jev und optional
-Hindsight. Das Image läuft als Benutzer `agent` (UID 1000). Der Desktop und alle
-Agenten teilen dieselbe X11- und D-Bus-Sitzung.
+[![CI](https://github.com/ralphschuler/agent-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/ralphschuler/agent-workbench/actions/workflows/ci.yml)
+![Ubuntu 24.04](https://img.shields.io/badge/Ubuntu-24.04-E95420?logo=ubuntu&logoColor=white)
+![Linux amd64](https://img.shields.io/badge/Plattform-linux%2Famd64-2496ED?logo=docker&logoColor=white)
 
-## Starten
+Ein persistenter Ubuntu-Desktop für **Codex und Claude Code** – mit Chrome,
+Terminal, Computer Use und gemeinsamen Skills. CLI und Desktop-Werkzeuge
+arbeiten in derselben Sitzung; Jev und Hindsight ergänzen Entscheidungen und
+Gedächtnis.
 
-Voraussetzungen: Docker Engine mit Compose v2, Linux **amd64**, mindestens
-4 GB RAM und ausreichend Platz für das Desktop-Image. Dieses Image wird
-zunächst nur für `linux/amd64` gebaut und getestet.
+## Was enthalten ist
+
+| Bereich | Ausstattung |
+| --- | --- |
+| Desktop | Ubuntu 24.04, XFCE, Chrome, Terminal und noVNC |
+| Coding | Codex und Claude Code |
+| GitHub | `gh`-CLI und offizieller GitHub-MCP-Server, einschließlich Actions-Werkzeugen |
+| Computer Use | Cua Driver mit Fensterbeobachtung, Screenshots und Eingaben |
+| Entscheidungen | Jev-MCP für gebündelte, typisierte Fragen mit Unsicherheitsbewertung |
+| Gedächtnis | Optionales Hindsight mit MCP und Recall-/Retain-Hooks |
+| Skills | Desktop, Jev, Memory sowie Anthropic Frontend Design und Skill Creator |
+| Automatisierung | Dependabot, geprüfte Patch-/Minor-Merges, CI, GHCR und GitHub Releases |
+
+## Schnellstart
+
+Benötigt werden Docker Engine mit Compose v2, Linux **amd64** und mindestens
+4 GB RAM.
 
 ```sh
+git clone https://github.com/ralphschuler/agent-workbench.git
+cd agent-workbench
 bash scripts/init.sh
 docker compose up --build -d
-docker compose ps
+```
+
+Den Desktop unter **<http://localhost:6080>** öffnen. Das lokal erzeugte
+VNC-Passwort steht in `.secrets/vnc_password`; `init.sh` erhält vorhandene
+Konfiguration. Für entfernte Hosts einen SSH-Tunnel verwenden.
+
+Die Coding-Assistenten im Container starten und mit dem eigenen Konto anmelden:
+
+```sh
 docker compose exec agent codex
-# Alternativen:
+# alternativ:
 docker compose exec agent claude
 ```
 
-`scripts/init.sh` erzeugt lokale Konfiguration und ein zufälliges achtstelliges
-VNC-Passwort in `.secrets/vnc_password` und einen lokalen Hindsight-API-Schlüssel
-in `.env`, ohne bestehende Dateien zu ersetzen.
-Der noVNC-Desktop ist über Port `6080` auf der Loopback-Adresse des Docker-Hosts
-erreichbar. Das Passwort liegt in der genannten Datei. Bei einem entfernten Host
-einen SSH-Tunnel verwenden; VNC/noVNC nicht unverschlüsselt ins Internet stellen.
+Chrome läuft mit aktivierter Sandbox, der Container als Benutzer `agent`
+(UID 1000). Host-Rechte und Workspace-Eigentümer erklärt die
+[Desktop-Anleitung](docs/docker.md).
 
-`./workspace` wird nach `/workspace` gemountet. Das Volume `agent-home` hält
-CLI-Anmeldungen, Konfiguration und Browserprofil. `docker compose down` erhält
-die Daten; `docker compose down -v` löscht die benannten Volumes.
+## Integrationen aktivieren
 
-Die CLIs sind installiert, ihre Konten jedoch nicht vorkonfiguriert. API-Zugänge
-in der ignorierten `.env` setzen oder sich interaktiv in der jeweiligen CLI
-anmelden. Nach Änderungen an `.env` den Container neu erstellen:
+### GitHub
+
+```sh
+docker compose exec agent gh auth login --hostname github.com --git-protocol https --web
+```
+
+Der GitHub-MCP-Server übernimmt die `gh`-Anmeldung bei seinem nächsten Start.
+Alternativ lassen sich Tokens zur Laufzeit über `.env` bereitstellen. In der
+MCP-Konfiguration werden keine Tokenwerte gespeichert.
+[Anmeldung und Werkzeuge →](docs/github.md)
+
+### Jev
+
+`TYPESAFE_API_KEY` in `.env` setzen und den Agent-Container neu erstellen:
 
 ```sh
 docker compose up -d --force-recreate agent
 ```
 
-Die Chrome-Sandbox bleibt standardmäßig eingeschaltet. Je nach Host sind
-zusätzliche Namespace-Rechte nötig; siehe [Desktop und Sandbox](docs/docker.md).
-Das Image erhält weder privilegierten Modus noch Zugriff auf den Docker-Socket.
+Jev bewertet konkrete Alternativen und mehrere Ja/Nein-Fragen in einer Anfrage.
+Unsichere Ergebnisse führen zur Enthaltung. Screenshots werden nur bei einem
+ausdrücklichen Werkzeugaufruf übertragen.
+[Jev und CUA →](docs/jev.md)
 
-## Integrationen
+### Hindsight
 
-| Bestandteil | Umsetzung |
-| --- | --- |
-| Coding-CLIs | Codex und Claude Code; npm-Versionen und Integrität im Lockfile |
-| Computer Use | `cua-driver mcp` über stdio; gemeinsame Desktop-Sitzung und Accessibility |
-| Jev | `jev_decide` und `jev_assess` als MCP-Werkzeuge mit offizieller Typesafe-SDK |
-| Hindsight | Optionaler Compose-Dienst, HTTP-MCP und opt-in Recall-/Retain-Hooks |
-| Common Skills | Desktop, Jev-Entscheidungen, Memory sowie Anthropic Frontend Design und Skill Creator für beide CLIs |
-| Updates und Releases | Dependabot-Prüfungen, kontrollierte Patch-/Minor-Merges, GHCR-Pipeline |
-
-Jev wird mit `TYPESAFE_API_KEY` aktiviert. Es bewertet konkrete Alternativen und
-gebündelte Ja/Nein-Fragen; es ersetzt keine Recherche oder Freigabe. Unsichere
-Ergebnisse führen zu einer Enthaltung. Screenshots werden nur auf ausdrücklichen
-Werkzeugaufruf hochgeladen. Details, Beispiele und der Plan zur Messung von
-Geschwindigkeit und Entscheidungsqualität stehen in [Jev und CUA](docs/jev.md).
-
-Hindsight verwendet standardmäßig eine eigene Codex-Anmeldung mit dem
-ChatGPT-Konto; ein zusätzlicher OpenAI-API-Schlüssel ist dafür nicht nötig.
-Nach dem Desktop-Build auf dem Docker-Host anmelden:
+Hindsight verwendet standardmäßig eine **separate Codex-/ChatGPT-Anmeldung**.
+Ein zusätzlicher OpenAI-API-Schlüssel ist dafür nicht nötig.
 
 ```sh
 python3 scripts/hindsight-login.py
-python3 scripts/hindsight-login.py check
 ```
 
-Der Helfer legt die Anmeldung im separaten Volume `hindsight-auth` ab. Hindsight
-verwendet daraus OAuth direkt zum Codex-Backend; es startet keinen Codex-Daemon.
-Die normale interaktive Codex-Anmeldung im Desktop bleibt getrennt.
-Den von `init.sh` erzeugten `HINDSIGHT_API_KEY` für die lokale Speicher-API verwenden.
-Bei einer manuell angelegten `.env` einen eigenen zufälligen API-Schlüssel setzen.
-`HINDSIGHT_ENABLED=1`
-registriert MCP; `HINDSIGHT_HOOKS_ENABLED=1` aktiviert zusätzlich automatische
-Recall-/Retain-Hooks für Codex und Claude. Dann:
+Danach in `.env` `HINDSIGHT_ENABLED=1` setzen. Automatische Recall-/Retain-Hooks
+lassen sich zusätzlich mit `HINDSIGHT_HOOKS_ENABLED=1` aktivieren.
 
 ```sh
-docker compose --profile memory up --build -d
-docker compose --profile memory ps
+docker compose --profile memory up -d
 ```
 
-Eine bereits vorhandene `.env` behält ihre Werte: bei der Umstellung
-`HINDSIGHT_API_LLM_PROVIDER=openai-codex` und
-`HINDSIGHT_API_LLM_MODEL=gpt-5.4-mini` setzen. Der native Claude-Code-Anbieter ist
-eine weitere Hindsight-Option.
-Hindsight-API und UI erhalten keinen Host-Port. Die getrennten Zugangsdaten,
-Persistenz und Datenschutzgrenzen sind in [Hindsight](docs/hindsight.md)
-beschrieben.
+`init.sh` erzeugt den separaten Schlüssel für die lokale Hindsight-API.
+Hindsight erhält keinen öffentlichen Host-Port.
+[Anmeldung, Speicher und Hooks →](docs/hindsight.md)
 
-Der Konfigurationsgenerator ergänzt verwaltete MCP-Einträge, Hook-Kommandos und
-Skill-Verknüpfungen. Vorhandene Benutzereinstellungen und Änderungen bleiben
-erhalten; Konflikte werden gemeldet. Eigene Skills als zusätzliche Verzeichnisse
-mit `SKILL.md` unter `skills/` ablegen und das Image neu bauen.
+## Daten und Konfiguration
 
-Die offiziellen Anthropic-Skills `frontend-design` und `skill-creator` sind
-unverändert mit ihren Lizenzen und einer fixierten Herkunftsversion enthalten.
-Mit dem Skill-Creator wurden die lokalen Skills `desktop` (CUA) und `decisions`
-(Jev) überarbeitet und gegen ihre Vorgänger geprüft. Szenarien, Herkunft und
-Grenzen dieses Vergleichs stehen unter [Skills](docs/skills.md).
+| Ort | Inhalt |
+| --- | --- |
+| `workspace/` | Arbeitsdateien; im Container unter `/workspace` |
+| Volume `agent-home` | CLI-Anmeldungen, Benutzerkonfiguration und Browserprofil |
+| Volume `hindsight-data` | Persistente Erinnerungen |
+| Volume `hindsight-auth` | Eigene Codex-Anmeldung für Hindsight |
+| `.env` und `.secrets/` | Lokale Zugangsdaten; von Git und Image-Build ausgeschlossen |
 
-## Prüfen und aktualisieren
+`docker compose down` erhält die benannten Volumes; `docker compose down -v`
+löscht sie. Vorhandene Einstellungen und eigene Skills bleiben beim Ergänzen
+der verwalteten Agent-Konfiguration erhalten.
 
-```sh
-uv venv .venv
-uv pip sync --python .venv/bin/python --require-hashes requirements.txt
-.venv/bin/python -m unittest discover -s tests -v
-node --test .github/scripts/*.test.cjs
-docker compose config --quiet
-docker build --platform linux/amd64 -t agent-desktop:dev .
-bash scripts/test-container.sh agent-desktop:dev
-```
+## Builds und Updates
 
-Der Container-Test prüft den laufenden Desktop, CLI-Versionen, eine tatsächlich
-gerenderte Chrome-Seite sowie CUA-MCP mit Fensterbeobachtung und Screenshot.
-Modellanbieter-Aufrufe benötigen eigene Zugänge und gehören nicht zum
-zugangsfreien Smoke-Test. Vertragstests prüfen Jev und Hindsight gegen lokale
-Testserver bzw. die SDK mit Mock-Transport.
+Pull Requests durchlaufen Tests sowie einen vollständigen Image-Build mit
+Desktop-, Chrome- und CUA-Smoke-Test. Erfolgreiche Builds auf `main`
+veröffentlichen **`ghcr.io/ralphschuler/agent-workbench:latest`**; Versions-Tags
+wie `v1.2.3` erzeugen zusätzlich versionierte Images und GitHub Releases.
 
-Python-Abhängigkeiten werden mit Hashes installiert, npm mit `npm ci`.
-Nach bewussten Versionsänderungen die Lockfiles erneuern:
+Dependabot aktualisiert Actions, Docker-, npm- und Python-Abhängigkeiten.
+Verifizierte Patch-/Minor-Updates können nach erfolgreicher CI automatisch
+gemergt werden. Majors bleiben zur manuellen Prüfung offen.
 
-```sh
-npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-uv pip compile requirements.in --generate-hashes --python-version 3.12 \
-  --output-file requirements.txt --no-emit-index-url
-```
+## Dokumentation
 
-Basis-Images und GitHub Actions sind per Digest bzw. Commit fixiert. Ubuntu-
-und Chrome-Pakete kommen beim Build aus signierten Paketquellen und können sich
-zwischen Builds ändern. Ein geplanter wöchentlicher Build aktualisiert diese
-Systempakete auch ohne Änderung eines Manifests.
-
-GHCR-Ziel ist `ghcr.io/ralphschuler/agent`, da der Repositoryname `.agent` nicht
-als Image-Komponente verwendet wird. Builds auf `main` und `v*`-Tags publizieren
-erst nach erfolgreichen Checks und dem Container-Test. Pull Requests publizieren
-keine Images. Erforderliche GitHub-Einstellungen und die Merge-Regeln stehen in
-[CI und automatische Updates](docs/ci.md).
+| Thema | Anleitung |
+| --- | --- |
+| Desktop, Sandbox und Host-Voraussetzungen | [Docker](docs/docker.md) |
+| GitHub-Anmeldung und MCP | [GitHub](docs/github.md) |
+| Gedächtnis und automatische Hooks | [Hindsight](docs/hindsight.md) |
+| Entscheidungen und Computer Use | [Jev und CUA](docs/jev.md) |
+| Gemeinsame Skills und Evaluationen | [Skills](docs/skills.md) |
+| Tests, Releases und Repository-Einstellungen | [CI und Updates](docs/ci.md) |

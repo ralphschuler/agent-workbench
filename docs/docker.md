@@ -21,6 +21,11 @@ permissions. New workspace directories use mode 0755 without granting other
 users write access. Named home volumes are initialized from the image with the
 correct ownership.
 
+The Compose project is named `agent-workbench`. If you already ran the earlier
+`agent-desktop` configuration, use `COMPOSE_PROJECT_NAME=agent-desktop` to keep
+using its existing named volumes. Changing the project name creates separate
+volumes; it does not migrate their contents.
+
 `scripts/init.sh` creates `.secrets/` with mode 0700 and its VNC password file
 with mode 0444. The private directory prevents other host users from reading
 the password; the readable file lets the Docker-mounted secret work for UID
@@ -93,7 +98,7 @@ trusted PEM bundle as an optional BuildKit secret:
 docker build --platform linux/amd64 \
   --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY \
   --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
-  -t agent-desktop:dev .
+  -t agent-workbench:dev .
 ```
 
 The proxy arguments use existing exported variables. `build_ca` is mounted only

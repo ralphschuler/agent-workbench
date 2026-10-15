@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const merge = require('./dependabot-merge.cjs');
 
-const repository = 'ralphschuler/.agent';
+const repository = 'ralphschuler/agent-workbench';
 const head = 'a'.repeat(40);
 const metadata = (...types) => `Bump dependencies\n\n---\nupdated-dependencies:\n${types.map((type, index) =>
   `- dependency-name: example-${index}\n  update-type: ${type}`).join('\n')}\n...\n`;
@@ -28,7 +28,7 @@ function makeApi({ pr = makePr(), commits = [makeCommit()], run = {}, mergeError
   return {
     calls,
     dispatches,
-    context: { repo: { owner: 'ralphschuler', repo: '.agent' }, payload: { workflow_run: { id: 42 } } },
+    context: { repo: { owner: 'ralphschuler', repo: 'agent-workbench' }, payload: { workflow_run: { id: 42 } } },
     core: { info() {} },
     github: {
       rest: {
@@ -74,8 +74,8 @@ test('only complete explicit patch/minor metadata is eligible', () => {
 test('merges a signed Dependabot patch with the tested head SHA and squash method', async () => {
   const api = makeApi();
   await merge(api);
-  assert.deepEqual(api.calls, [{ owner: 'ralphschuler', repo: '.agent', pull_number: 7, sha: head, merge_method: 'squash' }]);
-  assert.deepEqual(api.dispatches, [{ owner: 'ralphschuler', repo: '.agent', workflow_id: 'ci.yml', ref: 'main' }]);
+  assert.deepEqual(api.calls, [{ owner: 'ralphschuler', repo: 'agent-workbench', pull_number: 7, sha: head, merge_method: 'squash' }]);
+  assert.deepEqual(api.dispatches, [{ owner: 'ralphschuler', repo: 'agent-workbench', workflow_id: 'ci.yml', ref: 'main' }]);
 });
 
 test('rejects failed, foreign, and unrelated CI runs', async () => {

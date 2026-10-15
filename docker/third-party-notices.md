@@ -24,3 +24,16 @@ The resulting file's SHA-256 is
 
 Docker's reference for the `clone3` rule:
 <https://github.com/moby/profiles/blob/main/seccomp/default.json>.
+
+# GitHub CLI
+
+`LICENSE.github-cli` reproduces the GitHub CLI MIT license from
+<https://github.com/cli/cli/blob/v2.102.0/LICENSE> (SHA-256
+`6da4adc42392c8485e40b4251c7e332fc3352df1947c9ffade71dd60b14a7a4f`).
+
+The image installs the current stable GitHub CLI from its official signed apt
+repository. The keyring checksum and active fingerprint are checked against
+the [official installation documentation](https://github.com/cli/cli/blob/trunk/docs/install_linux.md)
+before apt verifies the repository metadata and package hashes. The version
+can advance on rebuilds; the verified version when this integration was added
+was 2.102.0.

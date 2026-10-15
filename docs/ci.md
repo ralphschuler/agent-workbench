@@ -4,7 +4,8 @@
 and Compose configuration. Every run builds the complete `linux/amd64` desktop
 image and smoke-tests desktop startup, the agent CLIs, and CUA MCP. Pull request
 jobs use no registry credentials. After those checks pass, pushes to `main` and
-`v*` tags publish `ghcr.io/ralphschuler/agent` with OCI labels, provenance, and an SBOM.
+`v*` tags publish `ghcr.io/ralphschuler/agent-workbench` with OCI labels,
+provenance, and an SBOM.
 For `v*` tag pushes, a separate job then creates a GitHub Release with generated
 release notes. It runs only after validation, the container smoke test, and GHCR
 publication succeed. **Required checks** also requires that release job to pass.
@@ -21,8 +22,9 @@ image digests and manifest versions continue to be maintained by Dependabot.
 Image tags include `main`, `latest`, and `sha-<full commit>`. A release such as
 `v1.2.3` also publishes `1.2.3` and `1.2`. Deploy by digest when a fixed artifact
 is required. GHCR authentication uses the publishing job's `GITHUB_TOKEN`; no
-personal access token is needed. The image name intentionally omits the leading
-dot in the Git repository name.
+personal access token is needed. The image uses the Agent Workbench product
+name independently of the GitHub repository name. Source links and GitHub
+Releases use the repository `ralphschuler/agent-workbench`.
 
 Use semantic version tags such as `v1.2.3` for releases and matching versioned
 image tags. The workflow accepts any `v*` tag consistently with its existing
@@ -50,13 +52,6 @@ cannot activate them:
 5. For a pre-existing GHCR package, grant this repository Actions write access.
    Choose the package's visibility after the first publication; it may initially
    be private. Protect release tags with a ruleset if releases need approval.
-
-Initial settings verification on 2026-10-15 confirmed squash merging is enabled,
-`main` is unprotected, and native repository auto-merge is disabled. The current
-GitHub integration returned HTTP 403 (`Resource not accessible by integration`)
-when enabling native auto-merge or creating branch protection, so those settings
-were not activated. An administrator must apply the protection above. The
-Dependabot workflow's normal squash merge does not require native auto-merge.
 
 Required reviews remain respected. The dependency workflow does not approve PRs
 or bypass branch protection. After any required human review or other external
@@ -92,8 +87,8 @@ python3 -m unittest discover -s tests -v
 node --test .github/scripts/*.test.cjs
 for script in scripts/*.sh; do bash -n "$script"; done
 docker compose config --quiet
-docker build --platform linux/amd64 -t agent:dev .
-bash scripts/test-container.sh agent:dev
+docker build --platform linux/amd64 -t agent-workbench:dev .
+bash scripts/test-container.sh agent-workbench:dev
 ```
 
 GitHub-hosted CI, GHCR publication, and GitHub Release creation can only be

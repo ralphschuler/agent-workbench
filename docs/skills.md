@@ -51,13 +51,9 @@ operate a live desktop, call Jev, or establish model latency or task success.
 They use one run per version and one scenario per skill. Passing them is a
 useful regression signal, not evidence of a general performance improvement.
 
-The review workspace for this setup is `/tmp/agent-skill-evals`, with separate
-`desktop-workspace` and `decisions-workspace` directories. Each contains the
-old snapshot, run outputs, grades, benchmark, and `review.html`. The static
-viewer has Outputs and Benchmark tabs and exports feedback to `feedback.json`.
-Review artifacts are local to this environment; reusable prompts and fixtures
-are tracked in the repository. Token and duration data are marked unavailable
-when the orchestration service supplies no measurements.
+Reusable prompts and fixtures are tracked in the repository. Keep generated
+snapshots, run outputs, grades, benchmarks, and review pages local and untracked.
+Mark token and duration data unavailable when no measurements are supplied.
 
 ## Validation and future updates
 

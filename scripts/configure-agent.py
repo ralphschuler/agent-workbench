@@ -190,7 +190,7 @@ def link_skills(home, root, warnings):
 def configure(home=None, env=None, root=ROOT):
     env = os.environ if env is None else env
     home = Path(home) if home is not None else Path(env.get("HOME", str(Path.home())))
-    state_path = home / ".config" / "agent-desktop" / "config-state.json"
+    state_path = home / ".config" / "agent-workbench" / "config-state.json"
     state = read_document(state_path)
     if state and state.get("version") != 1:
         raise ConfigurationError(f"Unsupported configuration journal; preserved file: {state_path}")
@@ -214,11 +214,13 @@ def configure(home=None, env=None, root=ROOT):
     authenticated = bool(env.get("HINDSIGHT_API_KEY"))
     jev = {"command": PYTHON, "args": [str(root / "integrations" / "jev" / "server.py")]}
     cua = {"command": "cua-driver", "args": ["mcp"]}
+    github = {"command": PYTHON, "args": [str(root / "scripts" / "github-mcp.py")]}
     for name in ("codex", "claude"):
         config = settings[name]
         section = "mcp_servers" if name == "codex" else "mcpServers"
         driver = copy.deepcopy(jev)
         desktop = copy.deepcopy(cua)
+        github_server = copy.deepcopy(github)
         if name == "codex":
             # Codex clears most process variables for stdio MCP subprocesses.
             # Preserve the desktop bus/display and the integration's documented
@@ -226,10 +228,13 @@ def configure(home=None, env=None, root=ROOT):
             desktop["env_vars"] = ["DISPLAY", "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "HOME"]
             driver["env_vars"] = ["TYPESAFE_API_KEY", "TYPESAFE_DEFAULT_MODEL",
                                   "JEV_TIMEOUT_SECONDS", "JEV_IMAGE_ROOTS"]
+            github_server["env_vars"] = ["GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN",
+                                        "HOME", "GH_CONFIG_DIR", "GITHUB_TOOLSETS"]
         else:
             driver["env"] = {"TYPESAFE_API_KEY": "${TYPESAFE_API_KEY}"}
         config.sync((section, "cua"), desktop)
         config.sync((section, "jev"), driver)
+        config.sync((section, "github"), github_server)
         hindsight = MISSING
         if memory:
             hindsight = {"type": "http", "url": url} if name == "claude" else {"url": url}
