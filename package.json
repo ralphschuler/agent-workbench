@@ -1,0 +1,16 @@
+{
+  "name": "agent-desktop-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned agent CLIs for the Ubuntu agent desktop image",
+  "engines": {"node": ">=24 <25"},
+  "allowScripts": {
+    "@anthropic-ai/claude-code": true,
+    "@github/keytar": false
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.300",
+    "@google/gemini-cli": "0.64.0",
+    "@openai/codex": "0.162.1"
+  }
+}

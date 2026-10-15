@@ -1,0 +1,67 @@
+{
+  "evaluation_mode": "simulation_only_no_real_inference",
+  "observed_context": "A build passed, but no release approval and no authentication check are available. A previously failed export shows a clear error in the current observation. The local Python version output is Python 3.12.14.",
+  "available_tools": {
+    "jev_decide": {
+      "required": [
+        "context",
+        "question",
+        "candidates"
+      ],
+      "optional": [
+        "image_path",
+        "confidence_threshold"
+      ],
+      "candidates_shape": "mapping string labels to string descriptions"
+    },
+    "jev_assess": {
+      "required": [
+        "context",
+        "questions"
+      ],
+      "optional": [
+        "image_path",
+        "confidence_threshold"
+      ],
+      "questions_shape": "mapping string names to yes/no question strings"
+    }
+  },
+  "decide_result": {
+    "status": "ok",
+    "abstain": true,
+    "selected": null,
+    "proposed": "publish",
+    "confidence": 0.96,
+    "probabilities": {
+      "publish": 0.92,
+      "investigate": 0.05,
+      "need_more_information": 0.03
+    },
+    "probability_enough_evidence": 0.3,
+    "threshold": 0.85
+  },
+  "assess_result": {
+    "status": "ok",
+    "abstain": true,
+    "answers": {
+      "build_passed": {
+        "probability_yes": 0.96,
+        "outcome": "yes"
+      },
+      "credentials_valid": {
+        "probability_yes": 0.58,
+        "outcome": "uncertain"
+      },
+      "export_complete": {
+        "probability_yes": 0.05,
+        "outcome": "no"
+      }
+    }
+  },
+  "subsequent_unconfigured_result": {
+    "status": "unconfigured",
+    "abstain": true,
+    "selected": null
+  },
+  "image_evidence_available": false
+}

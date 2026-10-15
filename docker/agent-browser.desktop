@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Chrome
+Comment=Chrome with accessibility for agent computer use
+Exec=agent-browser %U
+Terminal=false
+Icon=google-chrome
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+StartupNotify=true

@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ralphschuler/agent
+
+jobs:
+  validation:
+    name: Validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install locked Python dependencies
+        run: python -m pip install --require-hashes -r requirements.txt
+      - name: Test integrations
+        run: python -m unittest discover -s tests -v
+      - name: Test dependency merge policy
+        run: node --test .github/scripts/*.test.cjs
+      - name: Check shell syntax
+        run: |
+          for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Validate Compose
+        run: docker compose config --quiet
+
+  container:
+    name: Container build
+    needs: validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the desktop image for runtime checks
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: agent-desktop:ci
+          # Refresh signed apt packages, including Chrome, each Monday.
+          no-cache: ${{ github.event_name == 'schedule' }}
+          cache-from: type=gha,scope=agent-desktop
+          cache-to: type=gha,mode=max,scope=agent-desktop
+      - name: Smoke-test desktop, agent CLIs, and CUA MCP
+        run: bash scripts/test-container.sh agent-desktop:ci
+
+  publish:
+    name: Publish GHCR image
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main')
+    needs: [validation, container]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Authenticate to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate image tags and OCI labels
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=long
+      - name: Build and publish
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=agent-desktop
+          cache-to: type=gha,mode=max,scope=agent-desktop
+
+  required:
+    name: Required checks
+    if: always()
+    needs: [validation, container, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      VALIDATION: ${{ needs.validation.result }}
+      CONTAINER: ${{ needs.container.result }}
+      PUBLISH: ${{ needs.publish.result }}
+      EXPECT_PUBLICATION: ${{ github.event_name == 'push' || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.ref == 'refs/heads/main') }}
+    steps:
+      - name: Require successful validation and image build
+        run: |
+          test "$VALIDATION" = success
+          test "$CONTAINER" = success
+          if [ "$EXPECT_PUBLICATION" = true ]; then
+            test "$PUBLISH" = success
+          fi
