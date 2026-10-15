@@ -25,14 +25,22 @@ function eligiblePullRequest(pr, repository) {
 
 function latestRun(runs, repository, branch, sha, main = false) {
   const timestamp = (run) => {
-    const times = [run.run_started_at, run.updated_at].map((value) => Date.parse(value)).filter(Number.isFinite);
-    return times.length ? Math.max(...times) : null;
+    // Completion time must not let an older long-running attempt overtake a
+    // newer queued/running one. GitHub exposes the current attempt's start;
+    // queued runs can use creation, and update time is a last fallback only.
+    for (const value of [run.run_started_at, run.created_at, run.updated_at]) {
+      const parsed = Date.parse(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
   };
   return runs.filter((run) => run.path === WORKFLOW
     && run.head_repository?.full_name === repository && run.head_branch === branch
     && run.head_sha === sha
     && (main ? ['push', 'workflow_dispatch', 'schedule'] : ['pull_request', 'workflow_dispatch']).includes(run.event))
     .sort((a, b) => {
+      const aActive = a.status !== 'completed', bActive = b.status !== 'completed';
+      if (aActive !== bActive) return aActive ? -1 : 1;
       if (a.id === b.id) return (b.run_attempt || 1) - (a.run_attempt || 1);
       const aTime = timestamp(a), bTime = timestamp(b);
       return aTime !== null && bTime !== null && aTime !== bTime ? bTime - aTime : b.id - a.id;

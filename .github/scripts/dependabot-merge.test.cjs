@@ -100,14 +100,40 @@ test('latest main run takes precedence over an older successful attempt/run', as
   await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
 });
 
-test('a rerun of an older run ID supersedes a newer-ID success by actual activity time', async () => {
+test('a rerun of an older run ID supersedes a newer-ID success by attempt start time', async () => {
   const earlier = { run_started_at: '2026-10-15T09:00:00Z', updated_at: '2026-10-15T09:30:00Z' };
-  const rerun = { run_attempt: 2, run_started_at: '2026-10-15T08:00:00Z', updated_at: '2026-10-15T10:00:00Z', conclusion: 'failure' };
+  const rerun = { run_attempt: 2, run_started_at: '2026-10-15T10:00:00Z', updated_at: '2026-10-15T10:30:00Z', conclusion: 'failure' };
   const a = api({ runs: [run(100, 'main', main, rerun), run(101, 'main', main, earlier), run(200, pr().head.ref, head)] });
   await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
   const b = api({ runs: [run(100, 'main', main), run(200, pr().head.ref, head, rerun), run(201, pr().head.ref, head, earlier)] });
   await controller(b); assert.equal(b.operations.length, 0); assert.equal(b.dispatches.length, 0);
   assert.equal(controller.latestRun([run(200, 'main', main, { run_attempt: 1 }), run(200, 'main', main, { run_attempt: 2 })], repository, 'main', main, true).run_attempt, 2);
+});
+
+test('an old attempt finishing late never supersedes a newer queued or running attempt', async () => {
+  const older = { run_started_at: '2026-10-15T08:00:00Z', created_at: '2026-10-15T08:00:00Z', updated_at: '2026-10-15T12:00:00Z' };
+  for (const newer of [
+    { status: 'queued', conclusion: null, created_at: '2026-10-15T10:00:00Z', updated_at: '2026-10-15T10:00:00Z' },
+    { status: 'in_progress', conclusion: null, run_started_at: '2026-10-15T10:00:00Z', created_at: '2026-10-15T09:00:00Z', updated_at: '2026-10-15T10:30:00Z' },
+  ]) {
+    const a = api({ runs: [run(100, 'main', main, older), run(101, 'main', main, newer), run(200, pr().head.ref, head)] });
+    await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
+    const b = api({ runs: [run(100, 'main', main), run(200, pr().head.ref, head, older), run(201, pr().head.ref, head, newer)] });
+    await controller(b); assert.equal(b.operations.length, 0); assert.equal(b.dispatches.length, 0);
+  }
+});
+
+test('any active current-head run holds main and PR queues despite a newer completed success', async () => {
+  for (const status of ['queued', 'in_progress']) {
+    for (const activeTimes of [{}, { run_started_at: '2026-10-15T08:00:00Z', created_at: '2026-10-15T08:00:00Z' }]) {
+      const active = { status, conclusion: null, ...activeTimes };
+      const newerSuccess = { run_started_at: '2026-10-15T10:00:00Z', updated_at: '2026-10-15T11:00:00Z' };
+      const a = api({ runs: [run(100, 'main', main, active), run(101, 'main', main, newerSuccess), run(200, pr().head.ref, head)] });
+      await controller(a); assert.equal(a.operations.length, 0); assert.equal(a.dispatches.length, 0);
+      const b = api({ runs: [run(100, 'main', main), run(200, pr().head.ref, head, active), run(201, pr().head.ref, head, newerSuccess)] });
+      await controller(b); assert.equal(b.operations.length, 0); assert.equal(b.dispatches.length, 0);
+    }
+  }
 });
 
 test('missing main CI recovers post-merge dispatch and performs no PR mutation', async () => {
