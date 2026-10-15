@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5 AS node
+FROM node:26-bookworm-slim@sha256:298992629d69bbd5b2b03ad57094d8e4fcb3a8eeb7c4e25d29de656519568913 AS node
 
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS desktop-base
+FROM ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 AS desktop-base
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -22,7 +22,7 @@ test "${TARGETARCH:-amd64}" = amd64
 apt-get update
 apt-get install --no-install-recommends -y \
     at-spi2-core ca-certificates curl dbus-x11 fonts-dejavu-core \
-    fonts-liberation git gnupg libgail-common libxi6 libxkbcommon0 \
+    fonts-liberation git gnupg libatomic1 libgail-common libxi6 libxkbcommon0 \
     novnc procps python3 python3-venv scrot supervisor tini \
     websockify x11-utils x11vnc xauth xdg-utils xdotool \
     xfce4-appfinder xfce4-panel xfce4-session xfce4-settings \
@@ -66,7 +66,7 @@ DEPENDENCIES
 INSTALL
 
 # Keep GitHub tooling separate so updates do not reinstall the desktop or CLIs.
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS github-tools
+FROM ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7 AS github-tools
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
