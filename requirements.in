@@ -1,6 +1,6 @@
 # Runtime integrations; regenerate requirements.txt with uv pip compile --generate-hashes.
 cua-driver==0.35.4
-mcp==1.29.0
+mcp==2.3.0
 typesafe-sdk[pil]==0.7.5
 tomlkit==0.15.1
 # Skill Creator validation and packaging scripts.
