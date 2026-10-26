@@ -186,12 +186,12 @@ cryptography==50.0.2 \
     --hash=sha256:fa8f5efb344d6908a1ce62f4a24e2e5780f825d6f53f5f50ec5ffacac72936cb \
     --hash=sha256:fdd28f912fccfec1846a94e2e1e8f9b0012f557f0c46fe4f3eb0d7a87afcf90b
     # via pyjwt
-cua-driver==0.36.0 \
-    --hash=sha256:763cb8fd7ac4a9d900417cb1a9bfaca947a564ad9f1cb1b1b41d9a21c485fc38 \
-    --hash=sha256:80452c4f7a7547456f95d9e925f8af23d757a4b4e2071928b1d6afe2671c76a8 \
-    --hash=sha256:a6b81e8809838c0dbae91bd9c35d9808f82fe193d5ef347503426c2203b8e35b \
-    --hash=sha256:ba332f072bfdb14e2d0e2f8baaa4dcd2784c9574d5cf1abc094a58a26b5f1881 \
-    --hash=sha256:ca04c7f73e0dba0d0d08db68d3a3f1335ea6b5fc4f47407ddebf5afa4408b067
+cua-driver==0.37.0 \
+    --hash=sha256:123934810004cca5bdebcb8c0a6759f6902531b6bbc65d40c9e29a6f1d92af79 \
+    --hash=sha256:1a0103fd7fa5e9d51ee3ce26d502eb4187702282b3f4bcf1e9c09c6ce9f9d558 \
+    --hash=sha256:6e6b95b86a7695fb8363bdba66fce6bb55d66bf09ca2329b670392e84b291910 \
+    --hash=sha256:7057528bdbf2a28c37a85b2a67d12689ec12c46fb1ffc60fa40155a7cca63a2f \
+    --hash=sha256:e530ee36226d99516ef7ec696ba31d516e487ae5e5effdd5e2610c56af3eee19
     # via -r requirements.in
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
