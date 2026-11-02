@@ -10,8 +10,8 @@
     "@anthropic-ai/claude-code": true
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.302",
-    "@openai/codex": "0.163.0",
+    "@anthropic-ai/claude-code": "2.1.309",
+    "@openai/codex": "0.164.0",
     "@playwright/mcp": "0.0.83"
   }
 }
