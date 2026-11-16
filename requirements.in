@@ -1,5 +1,5 @@
 # Runtime integrations; regenerate requirements.txt with uv pip compile --generate-hashes.
-cua-driver==0.38.0
+cua-driver==0.47.19
 mcp==2.3.0
 typesafe-sdk[pil]==0.7.5
 tomlkit==0.15.2
